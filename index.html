@@ -94,6 +94,16 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .ctr .acc{display:flex;gap:4px;flex-wrap:wrap}
 .mini{font:600 11px Rajdhani;padding:2px 6px;border-radius:5px;background:#1b2b47;color:var(--tx3)}
 .mini.listo{background:rgba(46,204,113,.18);color:var(--ok)}.mini.casi{background:rgba(245,166,35,.18);color:var(--warn)}
+.p .img{position:relative}
+.p .img .ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:0}
+.p .img img{position:relative;z-index:1}
+.rchip{display:inline-flex;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.rchip button{background:none;border:0;color:var(--tx);padding:5px 10px;cursor:pointer;font:600 13px Rajdhani}
+.rchip button small{color:var(--tx3);font:400 11px Inter}
+.rchip .rv-del{color:var(--tx3);padding:5px 9px;border-left:1px solid var(--line)}
+.rchip .rv-del:hover{color:var(--bad)}
+.pct{font:700 18px Rajdhani;color:#fff}
+tr.rv-row td{background:rgba(226,72,90,.08)}
 footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 @media (max-width:640px){.squads{grid-template-columns:1fr}.accrow .an{width:84px}main{padding:10px}}
 </style>
@@ -108,52 +118,61 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
   <nav class="sec" id="secNav"></nav>
 </header>
 <main id="app"><div class="panel">Cargando…</div></main>
-<footer>Datos: swgoh.gg (roster público por código de aliado) · ROTE: genskaar.github.io · No afiliado a EA ni Lucasfilm.</footer>
+<footer>Datos: swgoh.gg (roster público por código de aliado; counters de swgoh.gg/gac/counters) · ROTE: genskaar.github.io · No afiliado a EA ni Lucasfilm.</footer>
 
 <script src="equipos.js"></script>
 <script>
 /* ======================= ESTADO ======================= */
 const S = {
-  chars:{}, ships:{}, acc: CUENTAS.map(c=>({cfg:c, st:'load', p:null, units:new Map(), err:''})),
-  sel: 0,          // índice de cuenta o 'all'
-  sec: 'resumen',
-  squadSize: 5, counterLead: 'SITHPALPATINE', counterSeason: TEMPORADAS[0].id, counterCache:{},
+  chars:{}, ships:{}, names:{}, dbErr:'',
+  acc: CUENTAS.map(c=>({cfg:c, st:'load', p:null, units:new Map(), err:''})),
+  sel: 0, sec: 'resumen',
+  squadSize: 5, counterLead: 'SITHPALPATINE',
   roster:{fac:'*', side:'*', minR:-1, q:'', sort:'power', showLocked:false, group:true},
-  plan:{mode:'gac', ndef:5, casi:false}
+  plan:{mode:'gac', ndef:5, casi:false},
+  rival:{code:'', st:'', err:'', p:null, units:new Map()}
 };
-const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
-const META_TAGS = new Set(['Leader','Fleet Commander','Order 66 Raid','Attacker','Support','Tank','Healer','Unaligned Force User']);
+const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['rival','🔍 Revisar rival'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
+const META_TAGS = new Set(['Leader','Fleet Commander','Order 66 Raid','Attacker','Support','Tank','Healer']);
 
 /* ======================= DATOS ======================= */
-async function api(path, params={}){
-  const qs = new URLSearchParams({path, ...params}).toString();
+async function api(path){
   try{
-    const r = await fetch('/.netlify/functions/swgoh?'+qs);
+    const r = await fetch('/.netlify/functions/swgoh?path='+encodeURIComponent(path));
     if(r.ok) return await r.json();
-    throw new Error('Función respondió '+r.status);
+    let msg='Función respondió '+r.status; try{const j=await r.json(); if(j.error) msg=j.error}catch(e){}
+    throw new Error(msg);
   }catch(e){
-    if(path.startsWith('counters')) throw e;
-    const r2 = await fetch(`https://swgoh.gg/api/${path}/`); // intento directo
-    if(!r2.ok) throw new Error('swgoh.gg respondió '+r2.status);
-    return await r2.json();
+    try{ const r2 = await fetch(`https://swgoh.gg/api/${path}/`); if(r2.ok) return await r2.json(); }catch(_){}
+    throw e;
   }
 }
 function lsGet(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
+function toDB(arr){
+  const out={};
+  (arr||[]).forEach(u=>{
+    const id=u.b||u.base_id; if(!id) return;
+    out[id]={name:u.n||u.name, image:u.i||u.image, cat:u.c||u.categories||[], al:u.a||u.alignment||'', role:u.r||u.role||''};
+  });
+  return out;
+}
 async function loadDB(force){
-  const cache = lsGet('swgoh_db');
-  if(cache && !force && Date.now()-cache.t < 3*864e5){ S.chars=cache.chars; S.ships=cache.ships; return; }
-  const [c,s] = await Promise.all([api('characters'), api('ships').catch(()=>[])]);
-  const pick = arr => Object.fromEntries((arr||[]).map(u=>[u.base_id,{name:u.name,image:u.image,cat:u.categories||[],al:u.alignment||'',role:u.role||''}]));
-  S.chars = pick(c); S.ships = pick(s);
-  lsSet('swgoh_db',{t:Date.now(),chars:S.chars,ships:S.ships});
+  const cache = lsGet('swgoh_db2');
+  if(cache && !force && Date.now()-cache.t < 3*864e5 && Object.keys(cache.chars).length>100){ S.chars=cache.chars; S.ships=cache.ships; return; }
+  try{
+    const [c,s] = await Promise.all([api('characters'), api('ships').catch(()=>[])]);
+    S.chars = toDB(c); S.ships = toDB(s);
+    if(Object.keys(S.chars).length<100) throw new Error('lista de personajes incompleta');
+    S.dbErr=''; lsSet('swgoh_db2',{t:Date.now(),chars:S.chars,ships:S.ships});
+  }catch(e){ S.dbErr=String(e.message||e); if(cache){S.chars=cache.chars;S.ships=cache.ships;} }
 }
 function normPlayer(p){
   const units = new Map();
   (p.units||[]).forEach(x=>{
-    const u = x.data||x;
-    const gear = u.gear_level||0;
+    const u = x.data||x; const gear = u.gear_level||0;
+    if(u.name) S.names[u.base_id]=u.name;
     units.set(u.base_id,{
       id:u.base_id, name:u.name, gear, stars:u.rarity||0, power:u.power||0, ct:u.combat_type||1,
       relic: gear>=13 ? Math.max(0,(u.relic_tier||2)-2) : -1,
@@ -162,51 +181,55 @@ function normPlayer(p){
   });
   return units;
 }
+async function fetchPlayer(code){
+  const p = await api('player/'+code);
+  return {data:p.data, units:(p.units||[]).map(x=>{const u=x.data||x;return {data:{base_id:u.base_id,name:u.name,gear_level:u.gear_level,power:u.power,rarity:u.rarity,relic_tier:u.relic_tier,combat_type:u.combat_type,is_galactic_legend:u.is_galactic_legend,zeta_abilities:u.zeta_abilities||[],omicron_abilities:u.omicron_abilities||[]}}})};
+}
 async function loadAcc(i, force){
   const a = S.acc[i], key='swgoh_p_'+a.cfg.codigo;
   const cache = lsGet(key);
   if(cache && !force){ a.p=cache.p; a.units=normPlayer(cache.p); a.st='ok'; a.t=cache.t; }
-  if(cache && !force && Date.now()-cache.t < 30*60e3){ return; }
+  if(cache && !force && Date.now()-cache.t < 30*60e3) return;
   a.st = a.p ? 'ok' : 'load'; renderTabs();
   try{
-    const p = await api('player/'+a.cfg.codigo);
-    const slim = {data:p.data, units:p.units}; // sin mods para no llenar el navegador
-    a.p=slim; a.units=normPlayer(slim); a.st='ok'; a.err=''; a.t=Date.now();
-    lsSet(key,{t:a.t,p:slim});
-  }catch(e){ if(!a.p){a.st='err';} a.err=String(e.message||e); }
+    const p = await fetchPlayer(a.cfg.codigo);
+    a.p=p; a.units=normPlayer(p); a.st='ok'; a.err=''; a.t=Date.now();
+    lsSet(key,{t:a.t,p});
+  }catch(e){ if(!a.p) a.st='err'; a.err=String(e.message||e); }
 }
 
 /* ======================= UTILIDADES ======================= */
 const fmt = n => (n||0).toLocaleString('es-EC');
-const fmtM = n => (n/1e6).toFixed(2)+' M';
+const fmtM = n => ((n||0)/1e6).toFixed(2)+' M';
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const info = id => S.chars[id]||S.ships[id]||null;
-const uname = id => info(id)?.name || id;
+const uname = id => info(id)?.name || S.names[id] || ABREV[id] || id;     // nombre completo
+const lab = id => ABREV[id] || info(id)?.name || S.names[id] || id;         // abreviatura o nombre
 function sideCls(id){const al=(info(id)?.al||'');return al.startsWith('Light')?'ls':al.startsWith('Dark')?'ds':'nt'}
-function initials(id){return uname(id).split(/\s+/).map(w=>w[0]).join('').slice(0,3)}
+function initials(id){return lab(id).replace(/[^A-Za-z0-9 ]/g,'').split(/\s+/).map(w=>w[0]).join('').slice(0,3)||'?'}
 function portrait(id, u, o={}){
   const im = info(id)?.image;
-  const cls = ['p',sideCls(id), o.sm?'sm':'', u?.gl?'gl':'', (!u&&!o.free)?'off':'', (u&&o.min!=null&&u.relic<o.min)?'low':''].join(' ');
+  const cls = ['p',sideCls(id), o.sm?'sm':'', (u?.gl||o.gl)?'gl':'', (!u&&!o.free)?'off':'', (u&&o.min!=null&&u.relic<o.min)?'low':''].join(' ');
   let badge='';
   if(u){ badge = u.relic>=0 ? `<span class="badge ${u.relic>=8?'r8':''}">R${u.relic}</span>` : (u.ct===2?`<span class="badge g">${u.stars}★</span>`:`<span class="badge g">G${u.gear}</span>`); }
-  const tip = esc(uname(id)) + (u?` · ${u.stars}★ · ${u.relic>=0?'R'+u.relic:'G'+u.gear} · ${fmt(u.power)} PG${u.zetas?` · ${u.zetas}Z`:''}${u.omis?` · ${u.omis}Ω`:''}`:' · no la tienes');
-  return `<div class="${cls}" title="${tip}"><div class="img">${im?`<img loading="lazy" src="${im}" alt="">`:initials(id)}</div>${badge}${o.multi?`<div class="multi">${o.multi}</div>`:''}<div class="nm">${esc(uname(id))}</div></div>`;
+  const tip = esc(uname(id)) + (u?` · ${u.stars}★ · ${u.relic>=0?'R'+u.relic:'G'+u.gear} · ${fmt(u.power)} PG${u.zetas?` · ${u.zetas}Z`:''}${u.omis?` · ${u.omis}Ω`:''}`:(o.free?'':' · no lo tienes'));
+  return `<div class="${cls}" title="${tip}"><div class="img">${im?`<img loading="lazy" src="${im}" alt="" onerror="this.remove()">`:''}<span class="ini">${esc(initials(id))}</span></div>${badge}${o.multi?`<div class="multi">${o.multi}</div>`:''}<div class="nm">${esc(lab(id))}</div></div>`;
 }
 const accs = () => S.sel==='all' ? S.acc.filter(a=>a.p) : [S.acc[S.sel]].filter(a=>a.p);
 function relicCount(a,min,ct=1){let n=0;a.units.forEach(u=>{if(u.ct===ct&&u.relic>=min)n++});return n}
+const glCount = a => [...a.units.values()].filter(u=>u.gl).length;
 
-/* Evalúa un equipo en una cuenta */
 function evalSquad(sq, a, size=S.squadSize){
   const U = id => a.units.get(id);
   const core = sq.core.slice(0,size);
-  const missing = core.filter(id=>!U(id) || U(id).stars<7 && !U(id).gl);
+  const missing = core.filter(id=>!U(id) || (U(id).stars<7 && !U(id).gl));
   const need = Math.max(0, size-core.length);
   const flexOwned = sq.flex.filter(id=>U(id)).sort((x,y)=>(U(y).relic-U(x).relic)||(U(y).power-U(x).power));
   const pick = flexOwned.slice(0,need);
   const ids = [...core, ...pick];
   const low = ids.filter(id=>U(id) && U(id).relic < sq.relic);
   const complete = sq.flex.length===0 || pick.length>=need;
-  let estado = missing.length ? 'falta' : (low.length===0 && complete ? 'listo' : 'casi');
+  const estado = missing.length ? 'falta' : (low.length===0 && complete ? 'listo' : 'casi');
   const power = ids.reduce((s,id)=>s+(U(id)?.power||0),0);
   return {estado, ids, missing, low, power, need:sq.flex.length?Math.max(0,need-pick.length):0};
 }
@@ -217,30 +240,68 @@ function evalIds(ids, a, min=7){
 }
 const chipTxt = {listo:'Listo',casi:'Casi',falta:'No disponible'};
 
-/* ======================= RENDER: CABECERA ======================= */
+function countersFor(lead){
+  const map=new Map();
+  (COUNTERS_BASE[lead]||[]).forEach(s=>{
+    const [squad,seen,win]=s.split('|'); const ids=squad.split(',').map(x=>x.trim()).filter(Boolean);
+    const k=ids.join(','), row={ids,seen:+seen||0,win:+win||0};
+    const prev=map.get(k); if(!prev||row.seen>prev.seen) map.set(k,row);
+  });
+  return [...map.values()].sort((x,y)=>(y.win-x.win)||(y.seen-x.seen));
+}
+function ctrRow(r, list){
+  const acc = list.map(a=>{const st=evalIds(r.ids,a);return `<span class="mini ${st}" title="${esc(a.cfg.nombre)}: ${chipTxt[st]}">${esc(a.cfg.nombre)}</span>`}).join('');
+  const mine = S.sel==='all'?null:list[0];
+  return `<div class="ctr"><div class="ports">${r.ids.map(id=>portrait(id,mine?mine.units.get(id):null,{sm:true,free:!mine,min:7})).join('')}</div>
+    <div class="meta"><b class="pct">${r.win}%</b> <span class="small muted">· ${fmt(r.seen)} batallas</span><div class="small">${r.ids.map(lab).map(esc).join(' + ')}</div></div>
+    <div class="acc">${acc}</div></div>`;
+}
+const swggLink = id => `<a href="https://swgoh.gg/gac/counters/${id}/" target="_blank" rel="noopener">Ver counters en swgoh.gg ↗</a>`;
+
+/* ======================= CABECERA ======================= */
 function renderTabs(){
   const el=document.getElementById('accTabs');
-  el.innerHTML = S.acc.map((a,i)=>`<button class="acc-tab ${S.sel===i?'on':''}" data-i="${i}"><span class="dot ${a.st}"></span>${esc(a.cfg.nombre)}<small>${a.p?fmtM(a.p.data?.galactic_power||0):a.cfg.codigo}</small></button>`).join('')
+  el.innerHTML = S.acc.map((a,i)=>`<button class="acc-tab ${S.sel===i?'on':''}" data-i="${i}"><span class="dot ${a.st}"></span>${esc(a.cfg.nombre)}<small>${a.p?fmtM(a.p.data?.galactic_power):a.cfg.codigo}</small></button>`).join('')
    + `<button class="acc-tab ${S.sel==='all'?'on':''}" data-i="all">★ Todas</button>`;
   el.querySelectorAll('.acc-tab').forEach(b=>b.onclick=()=>{S.sel=b.dataset.i==='all'?'all':+b.dataset.i;renderTabs();render()});
   document.getElementById('secNav').innerHTML = SECS.map(([k,t])=>`<button class="${S.sec===k?'on':''}" data-k="${k}">${t}</button>`).join('');
   document.querySelectorAll('#secNav button').forEach(b=>b.onclick=()=>{S.sec=b.dataset.k;renderTabs();render()});
 }
 
-/* ======================= RENDER: SECCIONES ======================= */
+/* ======================= SECCIONES ======================= */
 function render(){
   const app=document.getElementById('app');
   const list = accs();
-  if(!list.length && S.sec!=='diag'){
+  const warn = S.dbErr && !Object.keys(S.chars).length ? `<div class="err-box" style="margin-bottom:12px">No cargó la base de personajes de swgoh.gg (${esc(S.dbErr)}), por eso faltan fotos y facciones. Pulsa ⟳ Actualizar en un rato.</div>` : '';
+  if(!list.length && !['diag','rival'].includes(S.sec)){
     const a = S.sel==='all'?null:S.acc[S.sel];
-    app.innerHTML = a && a.st==='err'
-      ? `<div class="err-box">No se pudo cargar <b>${esc(a.cfg.nombre)}</b> (${a.cfg.codigo}): ${esc(a.err)}. Revisa que la función de Netlify esté subida (carpeta netlify/functions) y pulsa Actualizar.</div>`
-      : `<div class="panel">Cargando datos de swgoh.gg…</div>`;
+    app.innerHTML = warn + (a && a.st==='err'
+      ? `<div class="err-box">No se pudo cargar <b>${esc(a.cfg.nombre)}</b> (${a.cfg.codigo}): ${esc(a.err)}.</div>`
+      : `<div class="panel">Cargando datos de swgoh.gg…</div>`);
     return;
   }
-  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
-  app.innerHTML = f(list);
+  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
+  app.innerHTML = warn + f(list);
   bind();
+}
+
+function statsGrid(d,a){
+  return `<div class="grid-stats">
+    <div class="stat"><div class="v">${fmtM(d.galactic_power)}</div><div class="l">Poder galáctico</div></div>
+    <div class="stat"><div class="v">${fmtM(d.character_galactic_power)}</div><div class="l">PG personajes</div></div>
+    <div class="stat"><div class="v">${fmtM(d.ship_galactic_power)}</div><div class="l">PG naves</div></div>
+    <div class="stat"><div class="v">${d.skill_rating??'–'}</div><div class="l">GAC · ${esc(d.league_name||'')} Div ${d.division_number??''}</div></div>
+    <div class="stat"><div class="v">${d.arena_rank??'–'}</div><div class="l">Rango arena</div></div>
+    <div class="stat"><div class="v">${d.fleet_arena?.rank??'–'}</div><div class="l">Rango flota</div></div>
+    <div class="stat"><div class="v">${glCount(a)}</div><div class="l">Leyendas Galácticas</div></div>
+    <div class="stat"><div class="v">${relicCount(a,7)} · ${relicCount(a,8)} · ${relicCount(a,9)}</div><div class="l">R7+ · R8+ · R9</div></div>
+  </div>`;
+}
+function arenaBlock(d,a){
+  const ar=d.arena||{}, fl=d.fleet_arena||{};
+  return `<h3>Equipo de arena</h3><div class="ports">${[ar.leader,...(ar.members||[])].filter(Boolean).map(id=>portrait(id,a.units.get(id))).join('')||'<span class="muted small">—</span>'}</div>
+    <h3 style="margin-top:12px">Flota de arena</h3><div class="ports">${[fl.leader,...(fl.members||[])].filter(Boolean).map(id=>portrait(id,a.units.get(id))).join('')||'<span class="muted small">—</span>'}</div>
+    ${fl.reinforcements?.length?`<div class="small muted" style="margin-top:6px">Refuerzos:</div><div class="ports">${fl.reinforcements.map(id=>portrait(id,a.units.get(id),{sm:true})).join('')}</div>`:''}`;
 }
 
 function vResumen(list){
@@ -251,76 +312,54 @@ function vResumen(list){
       <div class="stat"><div class="v">${fmtM(tot('galactic_power'))}</div><div class="l">PG total</div></div>
       <div class="stat"><div class="v">${fmtM(tot('character_galactic_power'))}</div><div class="l">PG personajes</div></div>
       <div class="stat"><div class="v">${fmtM(tot('ship_galactic_power'))}</div><div class="l">PG naves</div></div>
-      <div class="stat"><div class="v">${list.reduce((s,a)=>s+[...a.units.values()].filter(u=>u.gl).length,0)}</div><div class="l">Leyendas Galácticas</div></div>
-    </div></div>
+      <div class="stat"><div class="v">${list.reduce((s,a)=>s+glCount(a),0)}</div><div class="l">Leyendas Galácticas</div></div></div></div>
     <div class="panel"><h2>Comparativa</h2><div class="tbl-wrap"><table><thead><tr><th>Cuenta</th><th class="n">PG</th><th class="n">Pers.</th><th class="n">Naves</th><th class="n">GL</th><th class="n">R5+</th><th class="n">R7+</th><th class="n">R8+</th><th class="n">R9</th><th class="n">Arena</th><th class="n">Flota</th><th class="n">GAC</th><th>Gremio</th></tr></thead><tbody>
-    ${list.map(a=>{const d=a.p.data||{};return `<tr><td><b>${esc(d.name||a.cfg.nombre)}</b><div class="small muted">${a.cfg.codigo}</div></td><td class="n">${fmtM(d.galactic_power||0)}</td><td class="n">${fmtM(d.character_galactic_power||0)}</td><td class="n">${fmtM(d.ship_galactic_power||0)}</td><td class="n">${[...a.units.values()].filter(u=>u.gl).length}</td><td class="n">${relicCount(a,5)}</td><td class="n">${relicCount(a,7)}</td><td class="n">${relicCount(a,8)}</td><td class="n">${relicCount(a,9)}</td><td class="n">${d.arena_rank??'–'}</td><td class="n">${d.fleet_arena?.rank??'–'}</td><td class="n">${d.skill_rating??'–'}</td><td>${esc(d.guild_name||'')}</td></tr>`}).join('')}
+    ${list.map(a=>{const d=a.p.data||{};return `<tr><td><b>${esc(d.name||a.cfg.nombre)}</b><div class="small muted">${a.cfg.codigo}</div></td><td class="n">${fmtM(d.galactic_power)}</td><td class="n">${fmtM(d.character_galactic_power)}</td><td class="n">${fmtM(d.ship_galactic_power)}</td><td class="n">${glCount(a)}</td><td class="n">${relicCount(a,5)}</td><td class="n">${relicCount(a,7)}</td><td class="n">${relicCount(a,8)}</td><td class="n">${relicCount(a,9)}</td><td class="n">${d.arena_rank??'–'}</td><td class="n">${d.fleet_arena?.rank??'–'}</td><td class="n">${d.skill_rating??'–'}</td><td>${esc(d.guild_name||'')}</td></tr>`}).join('')}
     </tbody></table></div></div>
     <div class="panel"><h2>Leyendas Galácticas por cuenta</h2><div class="tbl-wrap"><table><thead><tr><th>GL</th>${list.map(a=>`<th>${esc(a.cfg.nombre)}</th>`).join('')}</tr></thead><tbody>
-    ${[...glIds].sort((x,y)=>uname(x).localeCompare(uname(y))).map(id=>`<tr><td><div class="row">${portrait(id,null,{sm:true,free:true})}<span>${esc(uname(id))}</span></div></td>${list.map(a=>{const u=a.units.get(id);return `<td>${u?`<b style="color:var(--gold)">R${u.relic}</b>`:'<span class="muted">—</span>'}</td>`}).join('')}</tr>`).join('') || `<tr><td class="muted">Ninguna todavía</td></tr>`}
+    ${[...glIds].sort((x,y)=>lab(x).localeCompare(lab(y))).map(id=>`<tr><td><div class="row">${portrait(id,null,{sm:true,free:true,gl:true})}<span title="${esc(uname(id))}">${esc(lab(id))}</span></div></td>${list.map(a=>{const u=a.units.get(id);return `<td>${u?`<b style="color:var(--gold)">R${u.relic}</b>`:'<span class="muted">—</span>'}</td>`}).join('')}</tr>`).join('') || `<tr><td class="muted">Ninguna todavía</td></tr>`}
     </tbody></table></div></div>`;
   }
   const a=list[0], d=a.p.data||{};
   const chars=[...a.units.values()].filter(u=>u.ct===1);
   const dist=[]; for(let r=9;r>=0;r--) dist.push([r,chars.filter(u=>u.relic===r).length]);
   const maxD=Math.max(1,...dist.map(x=>x[1]));
-  const top=chars.sort((x,y)=>y.power-x.power).slice(0,16);
+  const top=chars.slice().sort((x,y)=>y.power-x.power).slice(0,16);
   const gls=chars.filter(u=>u.gl);
-  const ar=d.arena||{}, fl=d.fleet_arena||{};
-  return `<div class="panel"><h2>${esc(d.name||a.cfg.nombre)} <span class="muted small">· ${a.cfg.codigo} · ${esc(d.title||'')}</span></h2>
-    <div class="grid-stats">
-      <div class="stat"><div class="v">${fmtM(d.galactic_power||0)}</div><div class="l">Poder galáctico</div></div>
-      <div class="stat"><div class="v">${fmtM(d.character_galactic_power||0)}</div><div class="l">PG personajes</div></div>
-      <div class="stat"><div class="v">${fmtM(d.ship_galactic_power||0)}</div><div class="l">PG naves</div></div>
-      <div class="stat"><div class="v">${d.skill_rating??'–'}</div><div class="l">GAC · ${esc(d.league_name||'')} Div ${d.division_number??''}</div></div>
-      <div class="stat"><div class="v">${d.arena_rank??'–'}</div><div class="l">Rango arena</div></div>
-      <div class="stat"><div class="v">${fl.rank??'–'}</div><div class="l">Rango flota</div></div>
-      <div class="stat"><div class="v">${gls.length}</div><div class="l">Leyendas Galácticas</div></div>
-      <div class="stat"><div class="v">${relicCount(a,7)}</div><div class="l">Personajes R7+</div></div>
-    </div>
+  return `<div class="panel"><h2>${esc(d.name||a.cfg.nombre)} <span class="muted small">· ${a.cfg.codigo} · ${esc(d.title||'')}</span></h2>${statsGrid(d,a)}
     <p class="small muted">Gremio: <b>${esc(d.guild_name||'—')}</b> · Última sincronización en swgoh.gg: ${d.last_updated?new Date(d.last_updated).toLocaleString('es-EC'):'—'}</p></div>
-  <div class="cols">
-    <div class="panel"><h3>Equipo de arena</h3><div class="ports">${[ar.leader,...(ar.members||[])].filter(Boolean).map(id=>portrait(id,a.units.get(id))).join('')}</div>
-      <h3 style="margin-top:12px">Flota de arena</h3><div class="ports">${[fl.leader,...(fl.members||[])].filter(Boolean).map(id=>portrait(id,a.units.get(id))).join('')}</div>
-      ${fl.reinforcements?.length?`<div class="small muted" style="margin-top:6px">Refuerzos:</div><div class="ports">${fl.reinforcements.map(id=>portrait(id,a.units.get(id),{sm:true})).join('')}</div>`:''}
-    </div>
-    <div class="panel"><h3>Reliquias</h3>${dist.map(([r,n])=>`<div class="row" style="margin:3px 0"><span style="width:34px" class="rj">R${r}</span><div class="bar" style="flex:1"><i style="width:${n/maxD*100}%"></i></div><span style="width:30px;text-align:right">${n}</span></div>`).join('')}</div>
-  </div>
+  <div class="cols"><div class="panel">${arenaBlock(d,a)}</div>
+    <div class="panel"><h3>Reliquias</h3>${dist.map(([r,n])=>`<div class="row" style="margin:3px 0"><span style="width:34px" class="rj">R${r}</span><div class="bar" style="flex:1"><i style="width:${n/maxD*100}%"></i></div><span style="width:30px;text-align:right">${n}</span></div>`).join('')}</div></div>
   ${gls.length?`<div class="panel"><h3>Leyendas Galácticas</h3><div class="ports">${gls.map(u=>portrait(u.id,u)).join('')}</div></div>`:''}
   <div class="panel"><h3>Personajes más fuertes</h3><div class="ports">${top.map(u=>portrait(u.id,u)).join('')}</div></div>`;
 }
 
 function vRoster(list){
   const R=S.roster;
+  const hasDB = Object.keys(S.chars).length>0;
   const allFac=new Set(); Object.values(S.chars).forEach(c=>c.cat.forEach(t=>{if(!META_TAGS.has(t))allFac.add(t)}));
   const facs=[...allFac].sort();
-  // unidades a mostrar
-  const ids = Object.keys(S.chars).filter(id=>{
-    const c=S.chars[id];
+  const pool = hasDB ? Object.keys(S.chars) : [...new Set(list.flatMap(a=>[...a.units.values()].filter(u=>u.ct===1).map(u=>u.id)))];
+  const ids = pool.filter(id=>{
+    const c=S.chars[id]||{cat:[],al:''};
     if(R.side!=='*' && !c.al.startsWith(R.side)) return false;
     if(R.fac!=='*' && !c.cat.includes(R.fac)) return false;
-    if(R.q && !c.name.toLowerCase().includes(R.q.toLowerCase())) return false;
+    if(R.q){const q=R.q.toLowerCase(); if(!uname(id).toLowerCase().includes(q) && !lab(id).toLowerCase().includes(q)) return false;}
     const owned = list.some(a=>a.units.has(id));
     if(!owned && !R.showLocked) return false;
     if(R.minR>=0 && !list.some(a=>(a.units.get(id)?.relic??-1)>=R.minR)) return false;
     return true;
   });
   const best = id => list.reduce((b,a)=>{const u=a.units.get(id);return u&&(!b||u.relic>b.relic||(u.relic===b.relic&&u.power>b.power))?u:b},null);
-  const sorter = {power:(x,y)=>(best(y)?.power||0)-(best(x)?.power||0), relic:(x,y)=>((best(y)?.relic??-9)-(best(x)?.relic??-9))||((best(y)?.power||0)-(best(x)?.power||0)), name:(x,y)=>uname(x).localeCompare(uname(y))}[R.sort];
-  const card = id => {
-    if(S.sel==='all'){
-      const multi = list.map(a=>{const u=a.units.get(id);return u?(u.relic>=0?'R'+u.relic:'G'+u.gear):'–'}).join('·');
-      return portrait(id,best(id),{multi});
-    }
-    return portrait(id,list[0].units.get(id));
-  };
+  const sorter = {power:(x,y)=>(best(y)?.power||0)-(best(x)?.power||0), relic:(x,y)=>((best(y)?.relic??-9)-(best(x)?.relic??-9))||((best(y)?.power||0)-(best(x)?.power||0)), name:(x,y)=>lab(x).localeCompare(lab(y))}[R.sort];
+  const card = id => S.sel==='all'
+    ? portrait(id,best(id),{multi:list.map(a=>{const u=a.units.get(id);return u?(u.relic>=0?'R'+u.relic:'G'+u.gear):'–'}).join('·')})
+    : portrait(id,list[0].units.get(id));
   let body;
-  if(R.group && R.fac==='*'){
+  if(R.group && R.fac==='*' && hasDB){
     const groups = facs.map(f=>[f, ids.filter(id=>S.chars[id].cat.includes(f)).sort(sorter)]).filter(g=>g[1].length);
     body = groups.map(([f,g])=>`<details class="fac" ${groups.length<=6?'open':''}><summary><span>${esc(f)}</span><span class="muted small">${g.length} · R7+: ${g.filter(id=>(best(id)?.relic??-1)>=7).length}</span></summary><div class="ports">${g.map(card).join('')}</div></details>`).join('');
-  } else {
-    body = `<div class="ports">${ids.sort(sorter).map(card).join('')}</div>`;
-  }
+  } else body = `<div class="ports">${ids.sort(sorter).map(card).join('')}</div>`;
   return `<div class="panel"><h2>Roster por facción ${S.sel==='all'?'<span class="small muted">· debajo de cada retrato: nivel en cada cuenta ('+list.map(a=>esc(a.cfg.nombre)).join(' · ')+')</span>':''}</h2>
   <div class="ctrl">
     <select id="rFac"><option value="*">Todas las facciones</option>${facs.map(f=>`<option ${R.fac===f?'selected':''}>${esc(f)}</option>`).join('')}</select>
@@ -335,131 +374,153 @@ function vRoster(list){
   ${body||'<p class="muted">Nada con esos filtros.</p>'}</div>`;
 }
 
-function squadBlock(sq, a){
-  const e=evalSquad(sq,a);
-  const ids = e.ids.length? e.ids : sq.core;
-  return {e, html:`<div class="ports">${ids.map(id=>portrait(id,a.units.get(id),{sm:true,min:sq.relic})).join('')}${e.need?`<span class="small muted">+${e.need} libre(s)</span>`:''}</div>`};
+function squadCard(sq, list, opts={}){
+  const ev = list.map(a=>({a,e:evalSquad(sq,a)}));
+  const head = `<div class="sq-h"><div class="row">${portrait(sq.lider,null,{free:true,sm:true})}<div><h3>${esc(sq.nombre)}</h3><div class="small muted">${esc(sq.faccion)} · R${sq.relic}+ ${sq.def?'· 🛡 buena defensa':''}</div></div></div><span class="tier ${sq.tier===1?'t1':''}">T${sq.tier}</span></div>`;
+  const lead = `<div class="small muted" style="margin-bottom:6px">Núcleo: <b>${sq.core.map(lab).map(esc).join(', ')}</b>${sq.flex.length?` · Opciones: ${sq.flex.map(lab).map(esc).join(', ')}`:''}${sq.nota?` · <i>${esc(sq.nota)}</i>`:''}</div>`;
+  const body = ev.map(({a,e})=>{
+    const ids = e.ids.length? e.ids : sq.core;
+    return `<div class="accrow"><span class="an">${esc(a.cfg.nombre)}<br><span class="chip ${e.estado}">${chipTxt[e.estado]}</span></span>${e.estado==='falta'?`<span class="small muted">Falta: ${e.missing.map(lab).map(esc).join(', ')}</span>`:`<div class="ports">${ids.map(id=>portrait(id,a.units.get(id),{sm:true,min:sq.relic})).join('')}${e.need?`<span class="small muted">+${e.need} libre(s)</span>`:''}</div>`}</div>`;
+  }).join('');
+  return {ev, html:`<div class="sq">${head}${lead}${body}</div>`};
 }
 function vEquipos(list){
-  const rows = EQUIPOS.slice().sort((x,y)=>x.tier-y.tier);
-  const onlyReady = S.onlyReady;
-  const cards = rows.map(sq=>{
-    const ev = list.map(a=>({a,...squadBlock(sq,a)}));
-    if(onlyReady && !ev.some(x=>x.e.estado==='listo')) return '';
-    const head = `<div class="sq-h"><div><h3>${esc(sq.nombre)}</h3><div class="small muted">${esc(sq.faccion)} · R${sq.relic}+ ${sq.def?'· 🛡 buena defensa':''}</div></div><span class="tier ${sq.tier===1?'t1':''}">T${sq.tier}</span></div>`;
-    const lead = `<div class="ports" style="margin-bottom:6px">${portrait(sq.lider,null,{free:true})}<div class="small muted" style="flex:1;min-width:150px">Núcleo: ${sq.core.map(uname).map(esc).join(', ')}${sq.flex.length?`<br>Opciones: ${sq.flex.map(uname).map(esc).join(', ')}`:''}${sq.nota?`<br><i>${esc(sq.nota)}</i>`:''}</div></div>`;
-    const body = ev.map(x=>`<div class="accrow"><span class="an">${esc(x.a.cfg.nombre)}<br><span class="chip ${x.e.estado}">${chipTxt[x.e.estado]}</span></span>${x.e.estado==='falta'?`<span class="small muted">Falta: ${x.e.missing.map(uname).map(esc).join(', ')}</span>`:x.html}</div>`).join('');
-    return `<div class="sq">${head}${lead}${body}</div>`;
+  const cards = EQUIPOS.slice().sort((x,y)=>x.tier-y.tier).map(sq=>{
+    const c=squadCard(sq,list);
+    if(S.onlyReady && !c.ev.some(x=>x.e.estado==='listo')) return '';
+    return c.html;
   }).join('');
   return `<div class="panel"><h2>Equipos meta según tu roster</h2>
   <div class="ctrl"><select id="sqSize"><option value="5" ${S.squadSize===5?'selected':''}>5v5</option><option value="3" ${S.squadSize===3?'selected':''}>3v3</option></select>
-  <label class="chk"><input type="checkbox" id="onlyReady" ${onlyReady?'checked':''}> Solo los que tengo listos</label></div>
-  <p class="small muted"><span class="chip listo">Listo</span> todos a la reliquia mínima · <span class="chip casi">Casi</span> los tienes pero alguno está bajo (borde punteado) · <span class="chip falta">No disponible</span> te falta el núcleo. La lista se edita en <b>equipos.js</b>.</p></div>
+  <label class="chk"><input type="checkbox" id="onlyReady" ${S.onlyReady?'checked':''}> Solo los que tengo listos</label></div>
+  <p class="small muted"><span class="chip listo">Listo</span> todos a la reliquia mínima · <span class="chip casi">Casi</span> los tienes pero alguno está bajo (borde punteado) · <span class="chip falta">No disponible</span> te falta el núcleo.</p></div>
   <div class="squads">${cards||'<p class="muted">Ningún equipo listo.</p>'}</div>`;
 }
 
-function leaderOptions(){
-  const s=new Set(EQUIPOS.map(q=>q.lider)); Object.keys(COUNTERS_BASE).forEach(k=>s.add(k));
-  return [...s].sort((x,y)=>uname(x).localeCompare(uname(y)));
+function leaderSelect(id, selected){
+  const withData = Object.keys(COUNTERS_BASE).sort((x,y)=>lab(x).localeCompare(lab(y)));
+  const others = [...new Set(EQUIPOS.map(q=>q.lider))].filter(x=>!COUNTERS_BASE[x]).sort((x,y)=>lab(x).localeCompare(lab(y)));
+  const opt = x => `<option value="${x}" ${selected===x?'selected':''}>${esc(lab(x))}${lab(x)!==uname(x)?' · '+esc(uname(x)):''}</option>`;
+  return `<select id="${id}"><optgroup label="Con datos de counters">${withData.map(opt).join('')}</optgroup><optgroup label="Otros líderes (ver en swgoh.gg)">${others.map(opt).join('')}</optgroup></select>`;
 }
 function vCounters(list){
-  const key=S.counterLead+'|'+S.counterSeason, c=S.counterCache[key];
-  let content;
-  if(!c){ content='<p class="muted">Buscando counters en swgoh.gg…</p>'; loadCounters(); }
-  else{
-    const rowsC = c.counters.length ? c.counters : (COUNTERS_BASE[S.counterLead]||[]).map(ids=>({lead:ids[0],members:ids.slice(1),seen:0,win:0}));
-    content = (c.error?`<div class="note">No se pudo leer swgoh.gg en vivo (${esc(c.error)}). ${rowsC.length?'Muestro la lista base guardada.':''}</div>`:'')
-     + (rowsC.length? rowsC.map(r=>{
-        const ids=[r.lead,...r.members];
-        const acc = list.map(a=>{const st=evalIds(ids,a);return `<span class="mini ${st}" title="${chipTxt[st]}">${esc(a.cfg.nombre)}</span>`}).join('');
-        return `<div class="ctr"><div class="ports">${ids.map((id,k)=>portrait(id,S.sel==='all'?null:list[0].units.get(id),{sm:true,free:S.sel==='all',min:7})).join('')}</div>
-          <div class="meta">${r.seen?`<b style="font:700 18px Rajdhani">${r.win}%</b> <span class="small muted">victorias · ${r.seen} batallas</span>`:'<span class="small muted">lista base</span>'}<div class="small">${esc(uname(r.lead))}</div></div>
-          <div class="acc">${acc}</div></div>`}).join('')
-       : '<p class="muted">Sin datos para este líder.</p>');
-  }
-  const url=`https://swgoh.gg/gac/counters/${S.counterLead}/?season_id=${S.counterSeason}`;
+  const L=S.counterLead, rows=countersFor(L);
   return `<div class="panel"><h2>Counters de GAC</h2>
-  <div class="ctrl"><span class="muted">El rival tiene de líder:</span>
-    <select id="cLead">${leaderOptions().map(id=>`<option value="${id}" ${S.counterLead===id?'selected':''}>${esc(uname(id))}</option>`).join('')}</select>
+  <div class="ctrl"><span class="muted">El rival tiene de líder:</span>${leaderSelect('cLead',L)}
     <input type="text" id="cOther" list="allChars" placeholder="…u otro personaje">
-    <datalist id="allChars">${Object.entries(S.chars).map(([id,c])=>`<option value="${esc(c.name)}">`).join('')}</datalist>
-    <select id="cSeason">${TEMPORADAS.map(t=>`<option value="${t.id}" ${S.counterSeason===t.id?'selected':''}>${esc(t.nombre)}</option>`).join('')}</select>
-    <a href="${url}" target="_blank" rel="noopener">Ver en swgoh.gg ↗</a></div>
-  <div class="row" style="margin-bottom:10px">${portrait(S.counterLead,null,{free:true})}<div class="small muted">Cada fila es un equipo atacante con su % de victorias según swgoh.gg. A la derecha ves en qué cuentas lo puedes usar (verde = listo a R7+, naranja = lo tienes pero bajo, gris = te falta alguien).</div></div>
-  ${content}</div>`;
-}
-async function loadCounters(){
-  const key=S.counterLead+'|'+S.counterSeason;
-  if(S._ctrLoading===key) return; S._ctrLoading=key;
-  try{ const r=await api('counters/'+S.counterLead,{season:S.counterSeason}); S.counterCache[key]={counters:r.counters||[]}; }
-  catch(e){ S.counterCache[key]={counters:[],error:String(e.message||e)}; }
-  S._ctrLoading=null; if(S.sec==='counters') render();
+    <datalist id="allChars">${Object.values(S.chars).map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
+    ${swggLink(L)}</div>
+  <div class="row" style="margin-bottom:10px">${portrait(L,null,{free:true})}<div class="small muted">Cada fila es un equipo atacante con su % de victorias. A la derecha, en qué cuentas lo puedes usar: <span class="mini listo">verde</span> listo a R7+, <span class="mini casi">naranja</span> lo tienes pero bajo, <span class="mini">gris</span> te falta alguien.<br>Fuente: ${esc(COUNTERS_FUENTE)}.</div></div>
+  ${rows.length? rows.map(r=>ctrRow(r,list)).join('') : `<div class="note">Todavía no tengo counters guardados para ${esc(lab(L))}. ${swggLink(L)}</div>`}</div>`;
 }
 
+/* ======================= RIVAL ======================= */
+function rivals(){return lsGet('swgoh_rivales')||[]}
+async function loadRival(code){
+  code=String(code||'').replace(/\D/g,'');
+  if(code.length!==9){S.rival={...S.rival,st:'err',err:'El código de aliado tiene 9 números.'};render();return}
+  S.rival={code,st:'load',err:'',p:null,units:new Map()}; render();
+  try{
+    const p=await fetchPlayer(code);
+    S.rival={code,st:'ok',err:'',p,units:normPlayer(p),t:Date.now()};
+    const list=rivals().filter(r=>r.codigo!==code); list.unshift({codigo:code,nombre:p.data?.name||code,t:Date.now()});
+    lsSet('swgoh_rivales',list.slice(0,12));
+  }catch(e){ S.rival={code,st:'err',err:String(e.message||e),p:null,units:new Map()}; }
+  if(S.sec==='rival') render();
+}
+function vRival(list){
+  const R=S.rival, rec=rivals();
+  let out = `<div class="panel"><h2>🔍 Revisar rival por código de aliado</h2>
+    <div class="ctrl"><input type="text" id="rvCode" placeholder="Código de aliado (ej. 123-456-789)" value="${esc(R.code)}" style="width:240px" inputmode="numeric">
+    <button class="btn" id="rvGo">Revisar</button>
+    <span class="small muted">Compara contra: <b>${S.sel==='all'?'todas tus cuentas':esc(S.acc[S.sel].cfg.nombre)}</b> (cámbialo con las pestañas de arriba)</span></div>
+    ${rec.length?`<div class="row">${rec.map(r=>`<span class="rchip"><button class="rv-load" data-c="${r.codigo}">${esc(r.nombre)} <small>${r.codigo}</small></button><button class="rv-del" data-c="${r.codigo}" title="Quitar">×</button></span>`).join('')}</div>`:'<p class="small muted">Los rivales que revises se guardan aquí para volver a abrirlos rápido.</p>'}</div>`;
+  if(R.st==='load') return out+'<div class="panel">Leyendo el roster del rival en swgoh.gg…</div>';
+  if(R.st==='err') return out+`<div class="err-box">No pude leer ese código: ${esc(R.err)}</div>`;
+  if(R.st!=='ok') return out;
+  const d=R.p.data||{}, ra={units:R.units};
+  // comparativa
+  out += `<div class="panel"><h2>${esc(d.name||R.code)} <span class="small muted">· ${R.code} · ${esc(d.guild_name||'sin gremio')}</span> <a class="small" href="https://swgoh.gg/p/${R.code}/" target="_blank" rel="noopener">perfil en swgoh.gg ↗</a></h2>${statsGrid(d,ra)}
+   ${list.length?`<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Comparativa</th><th class="n">PG</th><th class="n">Pers.</th><th class="n">Naves</th><th class="n">GL</th><th class="n">R7+</th><th class="n">R8+</th><th class="n">R9</th></tr></thead><tbody>
+   <tr class="rv-row"><td><b>Rival · ${esc(d.name||'')}</b></td><td class="n">${fmtM(d.galactic_power)}</td><td class="n">${fmtM(d.character_galactic_power)}</td><td class="n">${fmtM(d.ship_galactic_power)}</td><td class="n">${glCount(ra)}</td><td class="n">${relicCount(ra,7)}</td><td class="n">${relicCount(ra,8)}</td><td class="n">${relicCount(ra,9)}</td></tr>
+   ${list.map(a=>{const x=a.p.data||{};return `<tr><td>${esc(a.cfg.nombre)}</td><td class="n">${fmtM(x.galactic_power)}</td><td class="n">${fmtM(x.character_galactic_power)}</td><td class="n">${fmtM(x.ship_galactic_power)}</td><td class="n">${glCount(a)}</td><td class="n">${relicCount(a,7)}</td><td class="n">${relicCount(a,8)}</td><td class="n">${relicCount(a,9)}</td></tr>`}).join('')}
+   </tbody></table></div>`:''}</div>`;
+  // arena + GL
+  const gls=[...R.units.values()].filter(u=>u.gl);
+  out += `<div class="cols"><div class="panel">${arenaBlock(d,ra)}
+     ${d.arena?.leader?`<h3 style="margin-top:12px">Cómo atacar su arena (${esc(lab(d.arena.leader))})</h3>${countersFor(d.arena.leader).slice(0,5).map(r=>ctrRow(r,list)).join('')||`<p class="small muted">Sin datos guardados. ${swggLink(d.arena.leader)}</p>`}`:''}</div>
+    <div class="panel"><h3>Sus Leyendas Galácticas (${gls.length})</h3><div class="ports">${gls.map(u=>portrait(u.id,u)).join('')||'<span class="muted small">Ninguna</span>'}</div>
+     <h3 style="margin-top:12px">Sus personajes más fuertes</h3><div class="ports">${[...R.units.values()].filter(u=>u.ct===1).sort((x,y)=>y.power-x.power).slice(0,12).map(u=>portrait(u.id,u,{sm:true})).join('')}</div></div></div>`;
+  // equipos del rival + cómo atacarlos
+  const theirs = EQUIPOS.map(sq=>({sq,e:evalSquad(sq,ra)})).filter(x=>x.e.estado!=='falta').sort((x,y)=>(x.e.estado==='listo'?0:1)-(y.e.estado==='listo'?0:1)||x.sq.tier-y.sq.tier||y.e.power-x.e.power);
+  out += `<div class="panel"><h2>Sus equipos y cómo atacarlos</h2><p class="small muted">Equipos que el rival puede armar (posibles defensas). Debajo de cada uno: los mejores counters y si tus cuentas los tienen listos.</p></div>
+   <div class="squads">${theirs.map(({sq,e})=>{
+     const ctr=countersFor(sq.lider).slice(0,4);
+     return `<div class="sq"><div class="sq-h"><div><h3>${esc(sq.nombre)}</h3><div class="small muted">${fmtM(e.power)} · ${esc(sq.faccion)}</div></div><span class="chip ${e.estado}">${e.estado==='listo'?'Lo tiene listo':'Lo tiene bajo'}</span></div>
+       <div class="ports">${e.ids.map(id=>portrait(id,R.units.get(id),{sm:true,min:sq.relic})).join('')}</div>
+       <div class="rj" style="color:var(--blue);margin-top:10px">⚔ Atácalo con</div>
+       ${ctr.length?ctr.map(r=>ctrRow(r,list)).join(''):`<p class="small muted">Sin counters guardados. ${swggLink(sq.lider)}</p>`}</div>`}).join('')||'<p class="muted">No encontré equipos meta en este roster.</p>'}</div>`;
+  return out;
+}
+
+/* ======================= PLAN ======================= */
 function planFor(a){
-  const P=S.plan;
-  const ok = st => st==='listo' || (P.casi && st==='casi');
+  const P=S.plan, ok = st => st==='listo' || (P.casi && st==='casi');
   const cand = EQUIPOS.map(sq=>({sq,e:evalSquad(sq,a)})).filter(x=>ok(x.e.estado));
   const used=new Set(), def=[], off=[];
   const free = x => x.e.ids.every(id=>!used.has(id));
   const take = (x,arr)=>{x.e.ids.forEach(id=>used.add(id));arr.push(x)};
   cand.slice().sort((x,y)=>(y.sq.def-x.sq.def)||(x.sq.tier-y.sq.tier)||(y.e.power-x.e.power)).forEach(x=>{ if(def.length<P.ndef && x.sq.def && free(x)) take(x,def) });
-  if(def.length<P.ndef) cand.slice().sort((x,y)=>(x.sq.tier-y.sq.tier)||(y.e.power-x.e.power)).forEach(x=>{ if(def.length<P.ndef && free(x)) take(x,def) });
+  cand.slice().sort((x,y)=>(x.sq.tier-y.sq.tier)||(y.e.power-x.e.power)).forEach(x=>{ if(def.length<P.ndef && free(x)) take(x,def) });
   cand.slice().sort((x,y)=>(x.sq.tier-y.sq.tier)||(y.e.power-x.e.power)).forEach(x=>{ if(free(x)) take(x,off) });
   return {def,off};
 }
 function vPlan(list){
   const P=S.plan;
   const block = (x,a)=>`<div class="accrow"><span class="an">${esc(x.sq.nombre)}<br><span class="small muted">${fmtM(x.e.power)}</span></span><div class="ports">${x.e.ids.map(id=>portrait(id,a.units.get(id),{sm:true,min:x.sq.relic})).join('')}</div></div>`;
-  const cols = list.map(a=>{const pl=planFor(a);return `<div class="panel"><h3>${esc(a.cfg.nombre)}</h3>
-    <div class="rj" style="color:var(--gold)">🛡 Defensa (${pl.def.length}/${P.ndef})</div>${pl.def.map(x=>block(x,a)).join('')||'<p class="small muted">Sin equipos listos.</p>'}
-    <div class="rj" style="color:var(--blue);margin-top:10px">⚔ Ataque</div>${pl.off.map(x=>block(x,a)).join('')||'<p class="small muted">Nada más disponible sin repetir personajes.</p>'}</div>`}).join('');
   return `<div class="panel"><h2>Plan ${P.mode==='gac'?'GAC':'Guerra Territorial (TW)'}</h2>
   <div class="ctrl"><select id="pMode"><option value="gac" ${P.mode==='gac'?'selected':''}>GAC</option><option value="tw" ${P.mode==='tw'?'selected':''}>TW</option></select>
   <span class="muted">Equipos en defensa:</span><input type="number" id="pDef" min="1" max="30" value="${P.ndef}" style="width:70px">
   <label class="chk"><input type="checkbox" id="pCasi" ${P.casi?'checked':''}> Incluir equipos "Casi"</label>
   <select id="sqSize2"><option value="5" ${S.squadSize===5?'selected':''}>5v5</option><option value="3" ${S.squadSize===3?'selected':''}>3v3</option></select></div>
-  <p class="small muted">Reparto automático sin repetir personajes: primero los mejores equipos de defensa, luego el resto queda para atacar. Es una sugerencia de partida; ajústala según tu rival${P.mode==='tw'?' y lo que pida tu gremio':''}.</p></div>
-  <div class="cols">${cols}</div>`;
+  <p class="small muted">Reparto automático sin repetir personajes: primero los mejores equipos de defensa, el resto queda para atacar.</p></div>
+  <div class="cols">${list.map(a=>{const pl=planFor(a);return `<div class="panel"><h3>${esc(a.cfg.nombre)}</h3>
+    <div class="rj" style="color:var(--gold)">🛡 Defensa (${pl.def.length}/${P.ndef})</div>${pl.def.map(x=>block(x,a)).join('')||'<p class="small muted">Sin equipos listos.</p>'}
+    <div class="rj" style="color:var(--blue);margin-top:10px">⚔ Ataque</div>${pl.off.map(x=>block(x,a)).join('')||'<p class="small muted">Nada más disponible sin repetir personajes.</p>'}</div>`}).join('')}</div>`;
 }
 
+/* ======================= ROTE / NAVES / DIAG ======================= */
 function vRote(list){
   const sideOk=(id,lado)=>{const al=info(id)?.al||'';return lado==='MX'||(lado==='LS'?al.startsWith('Light'):al.startsWith('Dark'))};
   const apt=(a,min,lado)=>{let n=0,gp=0;a.units.forEach(u=>{if(u.ct===1&&u.relic>=min&&sideOk(u.id,lado)){n++;gp+=u.power}});return{n,gp}};
   const ladoTxt={DS:'<span class="ds-t">Oscuro</span>',LS:'<span class="ls-t">Luminoso</span>',MX:'<span class="mx-t">Mixto</span>'};
   return `<div class="panel"><h2>ROTE · Rise of the Empire</h2>
-  <p class="small muted">Planetas y puntos para 3★ según <a href="https://genskaar.github.io/tb_empire/html/main.html" target="_blank" rel="noopener">genskaar</a> (ahí están las misiones y equipos por planeta). Abajo: cuántos personajes tienes aptos para las misiones de combate de cada fase (reliquia mínima y lado del planeta).</p>
+  <p class="small muted">Planetas y puntos para 3★ según <a href="https://genskaar.github.io/tb_empire/html/main.html" target="_blank" rel="noopener">genskaar</a> (ahí están las misiones y equipos por planeta). En cada cuenta: personajes aptos para las misiones de combate de la fase (reliquia mínima y lado).</p>
   <div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Planeta</th><th>Lado</th><th class="n">Puntos 3★</th>${list.map(a=>`<th class="n">${esc(a.cfg.nombre)}</th>`).join('')}</tr></thead><tbody>
   ${ROTE.map(f=>f.planetas.map((p,k)=>`<tr>${k===0?`<td rowspan="${f.planetas.length}"><b class="rj" style="font-size:18px">F${f.fase}</b><div class="small muted">R${f.relic}+</div></td>`:''}<td>${esc(p.n)}${p.bonus?' <span class="chip casi">bonus</span>':''}</td><td>${ladoTxt[p.lado]}</td><td class="n">${fmt(p.estrellas3)}</td>${list.map(a=>{const r=apt(a,f.relic,p.lado);return `<td class="n"><b>${r.n}</b><div class="small muted">${fmtM(r.gp)}</div></td>`}).join('')}</tr>`).join('')).join('')}
-  </tbody></table></div>
-  <p class="small muted">Número grande = personajes aptos · debajo = su PG sumado. Para despliegue cuenta todo tu PG (personajes y naves).</p></div>
-  <div class="cols">${list.map(a=>`<div class="panel"><h3>${esc(a.cfg.nombre)} · PG para desplegar</h3><div class="grid-stats">
-    <div class="stat"><div class="v">${fmtM(a.p.data?.character_galactic_power||0)}</div><div class="l">Personajes</div></div>
-    <div class="stat"><div class="v">${fmtM(a.p.data?.ship_galactic_power||0)}</div><div class="l">Naves</div></div>
-    ${[5,6,7,8,9].map(r=>`<div class="stat"><div class="v">${relicCount(a,r)}</div><div class="l">R${r}+</div></div>`).join('')}</div></div>`).join('')}</div>`;
+  </tbody></table></div></div>`;
 }
-
 function vNaves(list){
   return list.map(a=>{
     const ships=[...a.units.values()].filter(u=>u.ct===2).sort((x,y)=>y.power-x.power);
     const fl=a.p.data?.fleet_arena||{};
-    return `<div class="panel"><h2>${esc(a.cfg.nombre)} · Naves <span class="small muted">${ships.length} · ${fmtM(a.p.data?.ship_galactic_power||0)}</span></h2>
+    return `<div class="panel"><h2>${esc(a.cfg.nombre)} · Naves <span class="small muted">${ships.length} · ${fmtM(a.p.data?.ship_galactic_power)}</span></h2>
     <h3>Flota de arena</h3><div class="ports">${[fl.leader,...(fl.members||[]),...(fl.reinforcements||[])].filter(Boolean).map(id=>portrait(id,a.units.get(id))).join('')}</div>
     <h3 style="margin-top:12px">Todas</h3><div class="ports">${ships.map(u=>portrait(u.id,u)).join('')}</div></div>`;
   }).join('');
 }
-
 function vDiag(){
   const ids=new Set(); EQUIPOS.forEach(q=>[q.lider,...q.core,...q.flex].forEach(i=>ids.add(i)));
-  Object.entries(COUNTERS_BASE).forEach(([k,v])=>{ids.add(k);v.flat().forEach(i=>ids.add(i))});
-  const bad=[...ids].filter(i=>!S.chars[i]);
+  Object.entries(COUNTERS_BASE).forEach(([k,v])=>{ids.add(k);v.forEach(s=>s.split('|')[0].split(',').forEach(i=>ids.add(i)))});
+  const n=Object.keys(S.chars).length;
+  const bad=n?[...ids].filter(i=>!S.chars[i]):[];
   return `<div class="panel"><h2>Diagnóstico</h2>
-  <p>Base de datos de personajes: <b>${Object.keys(S.chars).length}</b> · naves: <b>${Object.keys(S.ships).length}</b></p>
+  <p>Base de personajes: <b>${n}</b> · naves: <b>${Object.keys(S.ships).length}</b> ${S.dbErr?`<span class="chip falta">${esc(S.dbErr)}</span>`:'<span class="chip listo">OK</span>'}</p>
   <table><thead><tr><th>Cuenta</th><th>Código</th><th>Estado</th><th>Datos guardados</th></tr></thead><tbody>
   ${S.acc.map(a=>`<tr><td>${esc(a.cfg.nombre)}</td><td>${a.cfg.codigo}</td><td><span class="dot ${a.st}" style="display:inline-block"></span> ${a.st==='ok'?'OK':a.st==='err'?'Error: '+esc(a.err):'Cargando'}</td><td>${a.t?new Date(a.t).toLocaleString('es-EC'):'—'}</td></tr>`).join('')}
   </tbody></table>
   <h3 style="margin-top:14px">IDs de equipos.js que swgoh.gg no reconoce</h3>
-  ${bad.length?`<p class="small muted">Corrige estos en equipos.js (búscalos en swgoh.gg/characters, el ID sale en la API):</p><p>${bad.map(i=>`<code>${esc(i)}</code>`).join(' · ')}</p>`:'<p class="muted">Todo correcto ✔</p>'}</div>`;
+  ${!n?'<p class="muted">No se puede revisar hasta que cargue la base de personajes.</p>':bad.length?`<p>${bad.map(i=>`<code>${esc(i)}</code>`).join(' · ')}</p><p class="small muted">Pásame esta lista y los corrijo.</p>`:'<p class="muted">Todo correcto ✔</p>'}</div>`;
 }
 
 /* ======================= EVENTOS ======================= */
@@ -477,28 +538,32 @@ function bind(){
   on('sqSize2','change',e=>{S.squadSize=+e.target.value;render()});
   on('onlyReady','change',e=>{S.onlyReady=e.target.checked;render()});
   on('cLead','change',e=>{S.counterLead=e.target.value;render()});
-  on('cSeason','change',e=>{S.counterSeason=e.target.value;render()});
-  on('cOther','change',e=>{const v=e.target.value.trim().toLowerCase();const hit=Object.entries(S.chars).find(([id,c])=>c.name.toLowerCase()===v||id.toLowerCase()===v);if(hit){S.counterLead=hit[0];render()}});
+  on('cOther','change',e=>{const v=e.target.value.trim().toLowerCase();const hit=Object.entries(S.chars).find(([id,c])=>c.name.toLowerCase()===v||id.toLowerCase()===v)||Object.entries(ABREV).map(([id,ab])=>[id,{name:ab}]).find(([id,c])=>c.name.toLowerCase()===v);if(hit){S.counterLead=hit[0];render()}});
   on('pMode','change',e=>{S.plan.mode=e.target.value;S.plan.ndef=e.target.value==='gac'?5:10;render()});
   on('pDef','change',e=>{S.plan.ndef=Math.max(1,+e.target.value||1);render()});
   on('pCasi','change',e=>{S.plan.casi=e.target.checked;render()});
+  on('rvGo','click',()=>loadRival($('rvCode').value));
+  on('rvCode','keydown',e=>{if(e.key==='Enter')loadRival(e.target.value)});
+  document.querySelectorAll('.rv-load').forEach(b=>b.onclick=()=>loadRival(b.dataset.c));
+  document.querySelectorAll('.rv-del').forEach(b=>b.onclick=()=>{lsSet('swgoh_rivales',rivals().filter(r=>r.codigo!==b.dataset.c));render()});
 }
 document.getElementById('btnRefresh').onclick=async()=>{
-  S.counterCache={};
-  await loadDB(true).catch(()=>{});
+  await loadDB(true);
   await Promise.all(S.acc.map((_,i)=>loadAcc(i,true).then(()=>{renderTabs();render()})));
+  if(S.rival.code && S.rival.st==='ok') await loadRival(S.rival.code);
   renderTabs();render();
 };
 
 /* ======================= INICIO ======================= */
 (async function init(){
   renderTabs();
-  try{ await loadDB(false); }catch(e){
-    document.getElementById('app').innerHTML=`<div class="err-box">No se pudo leer la base de personajes de swgoh.gg: ${esc(e.message||e)}.<br>Si abriste el archivo en tu PC, súbelo a Netlify: la página necesita la función <code>netlify/functions/swgoh.js</code>.</div>`;
-  }
+  const qp=new URLSearchParams(location.search).get('rival');
+  await loadDB(false);
   await Promise.all(S.acc.map((_,i)=>loadAcc(i,false).then(()=>{renderTabs();render()})));
+  if(qp){S.sec='rival';renderTabs();loadRival(qp);}
   renderTabs();render();
 })();
+
 </script>
 </body>
 </html>

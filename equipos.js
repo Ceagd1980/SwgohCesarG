@@ -1,8 +1,6 @@
 /* =====================================================================
    DATOS EDITABLES DEL RADAR SWGOH
-   - Aquí cambias cuentas, equipos meta, counters base y planetas de ROTE.
-   - Los identificadores (IDs) son los "base_id" de swgoh.gg.
-     Si un ID no existe, la página lo marca en "Diagnóstico" para corregirlo.
+   IDs = "base_id" de swgoh.gg. Si alguno no existe, sale en "Diagnóstico".
    ===================================================================== */
 
 window.CUENTAS = [
@@ -13,67 +11,99 @@ window.CUENTAS = [
   { nombre: 'DARTHRASEC2',     codigo: '295812246' }
 ];
 
-// Temporadas de GAC para los counters de swgoh.gg (actualízalas cuando cambie la temporada)
-window.TEMPORADAS = [
-  { id: 'CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_82', nombre: '5v5 · Temporada 82' },
-  { id: 'CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_83', nombre: '3v3 · Temporada 83' }
-];
-
-/* Equipos meta.
-   core  = obligatorios (si falta uno, el equipo no está disponible)
-   flex  = opciones para completar hasta 5 (para 3v3 se usan 3)
-   relic = reliquia mínima recomendada para GAC/TW
-   tier  = 1 (mejor) a 5
-   def   = buen equipo de defensa
-   Los equipos marcados "verifica" son orientativos: revisa en swgoh.gg cuando cambie el meta. */
-window.EQUIPOS = [
-  { key:'see',   nombre:'Sith Eternal Emperor',  lider:'SITHPALPATINE', core:['SITHPALPATINE'], flex:['VADER','WATTAMBOR','DARTHSIDIOUS','GRANDADMIRALTHRAWN','MARAJADE','SITHTROOPER','DARTHTALON'], relic:7, tier:1, def:true,  faccion:'Sith / Imperio' },
-  { key:'slkr',  nombre:'Supreme Leader Kylo Ren', lider:'SUPREMELEADERKYLOREN', core:['SUPREMELEADERKYLOREN'], flex:['KYLORENUNMASKED','DARKREY','SITHTROOPER','FOSITHTROOPER','FIRSTORDEROFFICERMALE','GENERALHUX'], relic:7, tier:1, def:true, faccion:'Primera Orden' },
-  { key:'rey',   nombre:'Rey (Leyenda Galáctica)', lider:'GLREY', core:['GLREY'], flex:['BENSOLO','REYJEDITRAINING','EPIXFINN','EPIXPOE','AMILYNHOLDO','BB8'], relic:7, tier:1, def:false, faccion:'Resistencia' },
-  { key:'jml',   nombre:'Jedi Master Luke', lider:'GRANDMASTERLUKE', core:['GRANDMASTERLUKE'], flex:['JEDIKNIGHTLUKE','HERMITYODA','JEDIKNIGHTREVAN','GRANDMASTERYODA','OLDBENKENOBI'], relic:7, tier:1, def:true, faccion:'Jedi' },
-  { key:'jmk',   nombre:'Jedi Master Kenobi', lider:'JEDIMASTERKENOBI', core:['JEDIMASTERKENOBI','COMMANDERAHSOKA'], flex:['GENERALKENOBI','MACEWINDU','AHSOKATANO','KIADIMUNDI'], relic:7, tier:1, def:false, faccion:'República / Jedi' },
-  { key:'leia',  nombre:'Leia Organa (Leyenda)', lider:'GLLEIA', core:['GLLEIA'], flex:['CAPTAINDROGAN','R2D2_LEGENDARY','CASSIANUNDERCOVER','CAPTAINREX','ADMIRALRADDUS'], relic:7, tier:1, def:false, faccion:'Rebeldes' },
-  { key:'jabba', nombre:'Jabba the Hutt', lider:'JABBATHEHUTT', core:['JABBATHEHUTT'], flex:['KRRSANTAN','BOUSHH','UNDERCOVERLANDO','SKIFFGUARD','BOBAFETT'], relic:7, tier:1, def:true, faccion:'Cartel Hutt' },
-  { key:'lv',    nombre:'Lord Vader', lider:'LORDVADER', core:['LORDVADER'], flex:[], relic:7, tier:1, def:true, faccion:'Imperio', nota:'Completa con 4 a tu elección (verifica en swgoh.gg).' },
-  { key:'bane',  nombre:'Darth Bane', lider:'DARTHBANE', core:['DARTHBANE'], flex:['COUNTDOOKU','VADER','MAUL','DARTHMALGUS','SAVAGEOPRESS'], relic:7, tier:2, def:true, faccion:'Sith' },
-  { key:'baylan',nombre:'Baylan Skoll', lider:'BAYLANSKOLL', core:['BAYLANSKOLL','MARROK','SHINHATI'], flex:[], relic:7, tier:2, def:true, faccion:'Mercenarios' },
-  { key:'queen', nombre:'Queen Amidala', lider:'QUEENAMIDALA', core:['QUEENAMIDALA','MASTERQUIGON','PADAWANOBIWAN'], flex:[], relic:7, tier:2, def:false, faccion:'República' },
-  { key:'maz',   nombre:'Maz Kanata', lider:'MAZKANATA', core:['MAZKANATA'], flex:['QUIGGOLD','SM33','KIX'], relic:7, tier:2, def:false, faccion:'Piratas', nota:'verifica' },
-  { key:'aphra', nombre:'Doctor Aphra', lider:'DOCTORAPHRA', core:['DOCTORAPHRA','BT1','TRIPLEZERO'], flex:['IG90'], relic:7, tier:2, def:false, faccion:'Droides / Canallas' },
-  { key:'mando', nombre:"Bo-Katan (Mand'alor)", lider:'MANDALORBOKATAN', core:['MANDALORBOKATAN'], flex:['IG12','PAZVIZSLA','THEMANDALORIANBESKARARMOR','ARMORER','BOKATAN'], relic:7, tier:2, def:false, faccion:'Mandalorianos' },
-  { key:'gm',    nombre:'Great Mothers', lider:'GREATMOTHERS', core:['GREATMOTHERS'], flex:['MORGANELSBETH','NIGHTSISTERSPIRIT','NIGHTSISTERZOMBIE','DAKA'], relic:7, tier:2, def:true, faccion:'Hermanas de la Noche' },
-  { key:'dr',    nombre:'Darth Revan', lider:'DARTHREVAN', core:['DARTHREVAN','BASTILASHANDARK','DARTHMALAK'], flex:['HK47','SITHMARAUDER','SITHTROOPER'], relic:7, tier:3, def:true, faccion:'Imperio Sith' },
-  { key:'jkr',   nombre:'Jedi Knight Revan', lider:'JEDIKNIGHTREVAN', core:['JEDIKNIGHTREVAN'], flex:['JOLEEBINDO','BASTILASHAN','GRANDMASTERYODA','HERMITYODA','JEDIKNIGHTLUKE'], relic:7, tier:3, def:false, faccion:'Jedi / Antigua República' },
-  { key:'gas',   nombre:'General Skywalker (501)', lider:'GENERALSKYWALKER', core:['GENERALSKYWALKER','CT7567'], flex:['CT5555','CT210408','ARCTROOPER501ST','AHSOKATANO'], relic:7, tier:3, def:true, faccion:'501 / Clones' },
-  { key:'bb',    nombre:'Bad Batch', lider:'BADBATCHHUNTER', core:['BADBATCHHUNTER','BADBATCHWRECKER','BADBATCHTECH','BADBATCHECHO','BADBATCHOMEGA'], flex:[], relic:7, tier:3, def:false, faccion:'Bad Batch' },
-  { key:'gungan',nombre:'Gungans', lider:'BOSSNASS', core:['BOSSNASS','CAPTAINTARPALS','BOOMADIER'], flex:['JARJARBINKS','GUNGANPHALANX'], relic:7, tier:3, def:true, faccion:'Gungans' },
-  { key:'ns',    nombre:'Hermanas de la Noche (Talzin)', lider:'MOTHERTALZIN', core:['MOTHERTALZIN'], flex:['ASAJVENTRESS','MERRIN','NIGHTSISTERZOMBIE','DAKA','NIGHTTROOPER'], relic:7, tier:3, def:true, faccion:'Hermanas de la Noche' },
-  { key:'inq',   nombre:'Inquisidores', lider:'GRANDINQUISITOR', core:['GRANDINQUISITOR'], flex:['THIRDSISTER','SEVENTHSISTER','FIFTHBROTHER','EIGHTHBROTHER','NINTHSISTER','SECONDSISTER'], relic:7, tier:3, def:true, faccion:'Inquisidores' },
-  { key:'gideon',nombre:'Moff Gideon (Remanente)', lider:'MOFFGIDEONS3', core:['MOFFGIDEONS3'], flex:['DARKTROOPER','CAPTAINENOCH','SCOUTTROOPER_V3','NIGHTTROOPER'], relic:7, tier:4, def:true, faccion:'Remanente Imperial' },
-  { key:'sep',   nombre:'Separatistas (Grievous)', lider:'GRIEVOUS', core:['GRIEVOUS','B1BATTLEDROIDV2','B2SUPERBATTLEDROID'], flex:['MAGNAGUARD','DROIDEKA','WATTAMBOR'], relic:7, tier:4, def:true, faccion:'Separatistas' },
-  { key:'phoenix',nombre:'Phoenix (Hera)', lider:'HERASYNDULLAS3', core:['HERASYNDULLAS3'], flex:['KANANJARRUSS3','EZRABRIDGERS3','CHOPPERS3','ZEBS3','SABINEWRENS3'], relic:7, tier:4, def:false, faccion:'Phoenix' },
-  { key:'cere',  nombre:'Cere Junda (Zeffo)', lider:'CEREJUNDA', core:['CEREJUNDA','CALKESTIS'], flex:['MERRIN','SECONDSISTER','BENSOLO'], relic:7, tier:4, def:false, faccion:'Usuarios de la Fuerza', nota:'verifica' }
-];
-
-/* Counters base (de swgoh.gg, para cuando la consulta en vivo no responda).
-   Formato: LIDER_RIVAL: [[líder, miembro, miembro], ...] */
-window.COUNTERS_BASE = {
-  SITHPALPATINE: [
-    ['JEDIMASTERKENOBI','COMMANDERAHSOKA','GENERALKENOBI'],
-    ['QUEENAMIDALA','MASTERQUIGON','PADAWANOBIWAN'],
-    ['MAZKANATA','QUIGGOLD','SM33'],
-    ['DARTHBANE','COUNTDOOKU'],
-    ['GLLEIA','CAPTAINDROGAN','R2D2_LEGENDARY'],
-    ['SUPREMELEADERKYLOREN','DARKREY','KYLORENUNMASKED'],
-    ['BAYLANSKOLL','MARROK','SHINHATI'],
-    ['MANDALORBOKATAN','IG12','PAZVIZSLA'],
-    ['DOCTORAPHRA','BT1','TRIPLEZERO']
-  ]
+/* Abreviaturas que se muestran en vez del nombre largo (el nombre completo sale al pasar el ratón) */
+window.ABREV = {
+  SITHPALPATINE:'SEE', SUPREMELEADERKYLOREN:'SLKR', GLREY:'Rey GL', GRANDMASTERLUKE:'JML', JEDIMASTERKENOBI:'JMK',
+  LORDVADER:'LV', GLLEIA:'Leia GL', GLAHSOKATANO:'Ahsoka GL', GLHONDO:'Hondo GL', JABBATHEHUTT:'Jabba',
+  COMMANDERAHSOKA:'CAT', GENERALKENOBI:'GK', KYLORENUNMASKED:'KRU', DARKREY:'Rey DS', GENERALSKYWALKER:'GAS',
+  DARTHREVAN:'DR', JEDIKNIGHTREVAN:'JKR', BASTILASHANDARK:'BSF', BASTILASHAN:'Bastila', GRANDINQUISITOR:'GI',
+  GRANDMASTERYODA:'GMY', HERMITYODA:'H. Yoda', JEDIKNIGHTLUKE:'JKL', JEDIKNIGHTCAL:'JKCK', LEIAJEDITRAINING:'Leia JT',
+  REYJEDITRAINING:'RJT', EMPERORPALPATINE:'Palpatine', DARTHSIDIOUS:'Sidious', WATTAMBOR:'Wat', GRANDADMIRALTHRAWN:'Thrawn',
+  MARAJADE:'Mara', SITHTROOPER:'Sith Tr.', FOSITHTROOPER:'FOST', GENERALHUX:'Hux', BENSOLO:'Ben Solo', EPIXFINN:'Finn',
+  EPIXPOE:'Poe', AMILYNHOLDO:'Holdo', CAPTAINDROGAN:'Drogan', R2D2_LEGENDARY:'R2', CASSIANUNDERCOVER:'Cassian UC',
+  KRRSANTAN:'Krrsantan', BOUSHH:'Boushh', UNDERCOVERLANDO:'Lando UC', SKIFFGUARD:'Skiff', BOBAFETT:'Boba',
+  BOBAFETTSCION:'BFSJ', MANDALORBOKATAN:"Mand'alor", THEMANDALORIANBESKARARMOR:'Mando BA', PAZVIZSLA:'Paz', IG12:'IG-12',
+  GREATMOTHERS:'G. Mothers', MORGANELSBETH:'Morgan', NIGHTSISTERSPIRIT:'NS Spirit', NIGHTSISTERZOMBIE:'Zombie',
+  BAYLANSKOLL:'Baylan', SHINHATI:'Shin', MARROK:'Marrok', QUEENAMIDALA:'Queen', MASTERQUIGON:'MQG', PADAWANOBIWAN:'P. Obi',
+  MAZKANATA:'Maz', QUIGGOLD:'Quiggold', SM33:'SM-33', DOCTORAPHRA:'Aphra', TRIPLEZERO:'0-0-0', MOTHERTALZIN:'Talzin',
+  ASAJVENTRESS:'Ventress', MOFFGIDEONS3:'Gideon', GRIEVOUS:'GG', B1BATTLEDROIDV2:'B1', B2SUPERBATTLEDROID:'B2',
+  CT7567:'Rex', CT5555:'Fives', CT210408:'Echo', ARCTROOPER501ST:'ARC', HERASYNDULLAS3:'Hera', DARTHMALAK:'Malak',
+  DARTHMALGUS:'Malgus', DARTHTRAYA:'Traya', DARTHNIHILUS:'Nihilus', SAVAGEOPRESS:'Savage', BOSSNASS:'Boss Nass',
+  CAPTAINTARPALS:'Tarpals', STRANGER:'Stranger', MAULHATEFUELED:'Maul HF', STARKILLER:'Starkiller',
+  JEDIMASTERMACEWINDU:'Mace JM', MACEWINDU:'Mace', RACCOON:'Rotta', SATELESHAN:'Satele', VADERDUELSEND:'Vader DE',
+  VADER:'Vader', APPO:'Appo', OPERATIVE:'Operative', EZRAEXILE:'Ezra Exile', PADAWANSABINE:'Sabine P.',
+  CAPTAINSILVO:'Silvo', VANE:'Vane', HUMANTHUG:'Thug', GAMORREANGUARD:'Gamorrean', CADBANE:'Cad Bane', GREEDO:'Greedo',
+  COUNTDOOKU:'Dooku', SITHASSASSIN:'Sith Assassin', DARTHTALON:'Talon', CEREJUNDA:'Cere', CALKESTIS:'Cal',
+  AHSOKATANO:'Ahsoka', KIADIMUNDI:'Ki-Adi', JOLEEBINDO:'Jolee', HK47:'HK-47', SITHMARAUDER:'Marauder',
+  FIRSTORDEROFFICERMALE:'FOO', FIRSTORDERTROOPER:'FOTP', HUYANG:'Huyang', BRUTUS:'Brutus', KLEYA:'Kleya',
+  LUTHENRAEL:'Luthen', TARONMALICOS:'Taron', THIRDSISTER:'3rd Sister', SEVENTHSISTER:'7th Sister',
+  ADMIRALPIETT:'Piett', GRANDMOFFTARKIN:'Tarkin', OLDBENKENOBI:'Old Ben', KIX:'Kix', BT1:'BT-1', IG90:'IG-90'
 };
 
-/* ROTE · Rise of the Empire (datos de genskaar.github.io/tb_empire)
-   lado: DS = Lado Oscuro, LS = Lado Luminoso, MX = Mixto
-   relic = reliquia mínima para misiones de combate de esa fase */
+/* Equipos meta.
+   core = obligatorios · flex = opciones para completar · relic = reliquia mínima · tier 1 (mejor) a 5 · def = buena defensa */
+window.EQUIPOS = [
+  { key:'rey',   nombre:'Rey GL', lider:'GLREY', core:['GLREY'], flex:['BENSOLO','CALKESTIS','REYJEDITRAINING','EPIXFINN','EPIXPOE','AMILYNHOLDO','BB8'], relic:7, tier:1, def:true, faccion:'Resistencia' },
+  { key:'ahsoka',nombre:'Ahsoka GL', lider:'GLAHSOKATANO', core:['GLAHSOKATANO'], flex:['EZRAEXILE','PADAWANSABINE','HUYANG'], relic:7, tier:1, def:true, faccion:'Rebeldes / Usuarios de la Fuerza' },
+  { key:'hondo', nombre:'Hondo GL', lider:'GLHONDO', core:['GLHONDO'], flex:['CAPTAINSILVO','VANE','BRUTUS','SM33'], relic:7, tier:1, def:true, faccion:'Piratas' },
+  { key:'lv',    nombre:'LV', lider:'LORDVADER', core:['LORDVADER'], flex:['APPO','OPERATIVE','MAULS7','GRANDADMIRALTHRAWN'], relic:7, tier:1, def:true, faccion:'Imperio' },
+  { key:'jabba', nombre:'Jabba', lider:'JABBATHEHUTT', core:['JABBATHEHUTT'], flex:['BOUSHH','KRRSANTAN','UNDERCOVERLANDO','SKIFFGUARD','BOBAFETT'], relic:7, tier:1, def:true, faccion:'Cartel Hutt' },
+  { key:'see',   nombre:'SEE', lider:'SITHPALPATINE', core:['SITHPALPATINE'], flex:['DARTHBANE','WATTAMBOR','VADER','DARTHSIDIOUS','GRANDADMIRALTHRAWN','MARAJADE','SITHTROOPER','DARTHTALON'], relic:7, tier:1, def:true, faccion:'Sith / Imperio' },
+  { key:'slkr',  nombre:'SLKR', lider:'SUPREMELEADERKYLOREN', core:['SUPREMELEADERKYLOREN'], flex:['DARKREY','KYLORENUNMASKED','GENERALHUX','FIRSTORDERTROOPER','SITHTROOPER','FOSITHTROOPER','FIRSTORDEROFFICERMALE'], relic:7, tier:1, def:true, faccion:'Primera Orden' },
+  { key:'jml',   nombre:'JML', lider:'GRANDMASTERLUKE', core:['GRANDMASTERLUKE'], flex:['JEDIKNIGHTCAL','LEIAJEDITRAINING','JEDIKNIGHTLUKE','HERMITYODA','GRANDMASTERYODA','JEDIKNIGHTREVAN'], relic:7, tier:1, def:true, faccion:'Jedi' },
+  { key:'leia',  nombre:'Leia GL', lider:'GLLEIA', core:['GLLEIA'], flex:['CAPTAINDROGAN','R2D2_LEGENDARY','CASSIANUNDERCOVER','CAPTAINREX','ADMIRALRADDUS'], relic:7, tier:1, def:false, faccion:'Rebeldes' },
+  { key:'jmk',   nombre:'JMK', lider:'JEDIMASTERKENOBI', core:['JEDIMASTERKENOBI','COMMANDERAHSOKA'], flex:['GENERALKENOBI','MACEWINDU','AHSOKATANO','KIADIMUNDI'], relic:7, tier:1, def:false, faccion:'República / Jedi' },
+  { key:'stranger',nombre:'Stranger', lider:'STRANGER', core:['STRANGER'], flex:['MAULHATEFUELED','STARKILLER','TARONMALICOS'], relic:7, tier:2, def:true, faccion:'Usuarios de la Fuerza' },
+  { key:'mace',  nombre:'Mace JM', lider:'JEDIMASTERMACEWINDU', core:['JEDIMASTERMACEWINDU'], flex:['MACEWINDU','KIADIMUNDI','AHSOKATANO'], relic:7, tier:2, def:true, faccion:'Jedi', nota:'verifica los miembros' },
+  { key:'palp',  nombre:'Palpatine', lider:'EMPERORPALPATINE', core:['EMPERORPALPATINE'], flex:['MARAJADE','VADERDUELSEND','VADER','GRANDADMIRALTHRAWN'], relic:7, tier:2, def:true, faccion:'Imperio' },
+  { key:'rotta', nombre:'Rotta', lider:'RACCOON', core:['RACCOON'], flex:['CADBANE','HUMANTHUG','GAMORREANGUARD','GREEDO'], relic:7, tier:2, def:true, faccion:'Cartel Hutt' },
+  { key:'bane',  nombre:'Darth Bane', lider:'DARTHBANE', core:['DARTHBANE'], flex:['COUNTDOOKU','SITHASSASSIN','VADER','DARTHSIDIOUS','MAUL','SITHTROOPER'], relic:7, tier:2, def:true, faccion:'Sith' },
+  { key:'baylan',nombre:'Baylan', lider:'BAYLANSKOLL', core:['BAYLANSKOLL','MARROK','SHINHATI'], flex:[], relic:7, tier:2, def:true, faccion:'Mercenarios' },
+  { key:'queen', nombre:'Queen Amidala', lider:'QUEENAMIDALA', core:['QUEENAMIDALA','MASTERQUIGON','PADAWANOBIWAN'], flex:[], relic:7, tier:2, def:true, faccion:'República' },
+  { key:'satele',nombre:'Satele', lider:'SATELESHAN', core:['SATELESHAN'], flex:['BASTILASHAN','JEDIKNIGHTREVAN','JOLEEBINDO'], relic:7, tier:2, def:false, faccion:'Antigua República' },
+  { key:'cassian',nombre:'Cassian UC', lider:'CASSIANUNDERCOVER', core:['CASSIANUNDERCOVER'], flex:['KLEYA','LUTHENRAEL'], relic:7, tier:2, def:false, faccion:'Rebeldes' },
+  { key:'maz',   nombre:'Maz', lider:'MAZKANATA', core:['MAZKANATA'], flex:['KIX','QUIGGOLD','SM33'], relic:7, tier:2, def:false, faccion:'Piratas' },
+  { key:'mando', nombre:"Mand'alor", lider:'MANDALORBOKATAN', core:['MANDALORBOKATAN'], flex:['IG12','PAZVIZSLA','THEMANDALORIANBESKARARMOR','ARMORER'], relic:7, tier:2, def:false, faccion:'Mandalorianos' },
+  { key:'gm',    nombre:'Great Mothers', lider:'GREATMOTHERS', core:['GREATMOTHERS'], flex:['MORGANELSBETH','NIGHTSISTERSPIRIT','NIGHTSISTERZOMBIE','DAKA'], relic:7, tier:2, def:true, faccion:'Hermanas de la Noche' },
+  { key:'aphra', nombre:'Aphra', lider:'DOCTORAPHRA', core:['DOCTORAPHRA','BT1','TRIPLEZERO'], flex:['IG90'], relic:7, tier:3, def:false, faccion:'Droides / Canallas' },
+  { key:'traya', nombre:'Traya', lider:'DARTHTRAYA', core:['DARTHTRAYA'], flex:['DARTHNIHILUS','SAVAGEOPRESS','DARTHTALON','DARTHSION'], relic:7, tier:3, def:true, faccion:'Sith' },
+  { key:'malgus',nombre:'Malgus', lider:'DARTHMALGUS', core:['DARTHMALGUS'], flex:['DARTHMALAK','DARTHREVAN','BASTILASHANDARK'], relic:7, tier:3, def:true, faccion:'Imperio Sith' },
+  { key:'dr',    nombre:'DR', lider:'DARTHREVAN', core:['DARTHREVAN','BASTILASHANDARK','DARTHMALAK'], flex:['HK47','SITHMARAUDER','SITHTROOPER'], relic:7, tier:3, def:true, faccion:'Imperio Sith' },
+  { key:'jkr',   nombre:'JKR', lider:'JEDIKNIGHTREVAN', core:['JEDIKNIGHTREVAN'], flex:['JOLEEBINDO','BASTILASHAN','GRANDMASTERYODA','HERMITYODA','JEDIKNIGHTLUKE'], relic:7, tier:3, def:false, faccion:'Jedi / Antigua República' },
+  { key:'gas',   nombre:'GAS', lider:'GENERALSKYWALKER', core:['GENERALSKYWALKER','CT7567'], flex:['CT5555','CT210408','ARCTROOPER501ST','AHSOKATANO'], relic:7, tier:3, def:true, faccion:'501 / Clones' },
+  { key:'gungan',nombre:'Gungans', lider:'BOSSNASS', core:['BOSSNASS','CAPTAINTARPALS','BOOMADIER'], flex:['JARJARBINKS','GUNGANPHALANX'], relic:7, tier:3, def:true, faccion:'Gungans' },
+  { key:'inq',   nombre:'GI / Inquisidores', lider:'GRANDINQUISITOR', core:['GRANDINQUISITOR'], flex:['THIRDSISTER','SEVENTHSISTER','FIFTHBROTHER','EIGHTHBROTHER','NINTHSISTER','SECONDSISTER'], relic:7, tier:3, def:true, faccion:'Inquisidores' },
+  { key:'bb',    nombre:'Bad Batch', lider:'BADBATCHHUNTER', core:['BADBATCHHUNTER','BADBATCHWRECKER','BADBATCHTECH','BADBATCHECHO','BADBATCHOMEGA'], flex:[], relic:7, tier:4, def:false, faccion:'Bad Batch' },
+  { key:'ns',    nombre:'Talzin', lider:'MOTHERTALZIN', core:['MOTHERTALZIN'], flex:['ASAJVENTRESS','MERRIN','NIGHTSISTERZOMBIE','DAKA','NIGHTTROOPER'], relic:7, tier:4, def:true, faccion:'Hermanas de la Noche' },
+  { key:'gideon',nombre:'Gideon', lider:'MOFFGIDEONS3', core:['MOFFGIDEONS3'], flex:['DARKTROOPER','CAPTAINENOCH','SCOUTTROOPER_V3','NIGHTTROOPER'], relic:7, tier:4, def:true, faccion:'Remanente Imperial' },
+  { key:'sep',   nombre:'GG Separatistas', lider:'GRIEVOUS', core:['GRIEVOUS','B1BATTLEDROIDV2','B2SUPERBATTLEDROID'], flex:['MAGNAGUARD','DROIDEKA','WATTAMBOR'], relic:7, tier:4, def:true, faccion:'Separatistas' },
+  { key:'phoenix',nombre:'Hera Phoenix', lider:'HERASYNDULLAS3', core:['HERASYNDULLAS3'], flex:['KANANJARRUSS3','EZRABRIDGERS3','CHOPPERS3','ZEBS3','SABINEWRENS3'], relic:7, tier:4, def:false, faccion:'Phoenix' },
+  { key:'cere',  nombre:'Cere (Zeffo)', lider:'CEREJUNDA', core:['CEREJUNDA','CALKESTIS'], flex:['MERRIN','SECONDSISTER','BENSOLO'], relic:7, tier:4, def:false, faccion:'Usuarios de la Fuerza' }
+];
+
+/* Counters por líder rival — datos públicos de swgoh.gg/gac/counters (GAC Temporada 83, 3v3), tomados el 4-oct-2026.
+   Formato: 'LIDER,MIEMBRO,MIEMBRO|batallas|%victorias'. En 5v5 usa el mismo líder y completa con su facción. */
+window.COUNTERS_FUENTE = 'swgoh.gg · GAC Temporada 83 (3v3) · 4-oct-2026';
+window.COUNTERS_BASE = {
+  SITHPALPATINE:['MAZKANATA,KIX,SM33|14|100','QUEENAMIDALA,MASTERQUIGON,PADAWANOBIWAN|10|100','JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|6|100','MAZKANATA,QUIGGOLD,SM33|6|100','DARTHBANE,COUNTDOOKU|5|100','DOCTORAPHRA,BT1,TRIPLEZERO|5|100','MANDALORBOKATAN,IG12,PAZVIZSLA|5|100','RACCOON|4|100','SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|4|100','BAYLANSKOLL,MARROK,SHINHATI|3|100','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|3|100','JEDIMASTERKENOBI,COMMANDERAHSOKA,MACEWINDU|3|100','GREATMOTHERS,MORGANELSBETH,NIGHTSISTERSPIRIT|2|100'],
+  GLAHSOKATANO:['GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|1053|99','SITHPALPATINE,DARTHBANE|3826|94','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|2730|92','STRANGER,MAULHATEFUELED,STARKILLER|1143|90'],
+  GLHONDO:['SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|6127|99','STRANGER,MAULHATEFUELED,STARKILLER|4781|99','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|2337|99','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|895|98','DARTHBANE,COUNTDOOKU|406|98'],
+  LORDVADER:['DARTHBANE,COUNTDOOKU|225|99','DARTHBANE,COUNTDOOKU,APPO|495|96','MANDALORBOKATAN,IG12,THEMANDALORIANBESKARARMOR|539|87','SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|3313|86','SITHPALPATINE,DARTHBANE|6689|85','DARTHBANE,SITHASSASSIN|4019|84','DARTHBANE,FOSITHTROOPER|417|84','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|315|84','DARTHBANE,DARTHSIDIOUS|668|83'],
+  JABBATHEHUTT:['SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|5903|99','GLAHSOKATANO,EZRAEXILE,PADAWANSABINE|2602|99','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|2318|99','GLAHSOKATANO,EZRAEXILE,HUYANG|1517|99','JEDIMASTERKENOBI,COMMANDERAHSOKA,MACEWINDU|12600|98','LORDVADER,APPO,OPERATIVE|5614|98','SITHPALPATINE,DARTHBANE|851|97','RACCOON,CADBANE,HUMANTHUG|1066|95','JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|11900|92','CASSIANUNDERCOVER,KLEYA,LUTHENRAEL|2339|92','RACCOON,GAMORREANGUARD,HUMANTHUG|1828|91','GRANDMASTERLUKE,JEDIKNIGHTCAL,LEIAJEDITRAINING|1592|91'],
+  BOSSNASS:['SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|236|100','JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|1310|99','SITHPALPATINE,DARTHBANE|475|99','JEDIMASTERKENOBI,COMMANDERAHSOKA,MACEWINDU|328|99','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|654|98','DARTHTRAYA,DARTHNIHILUS,SAVAGEOPRESS|980|97','QUEENAMIDALA,MASTERQUIGON,PADAWANOBIWAN|827|95','DARTHMALGUS,DARTHMALAK,DARTHREVAN|534|94','LORDVADER,APPO,OPERATIVE|298|93','GREATMOTHERS,MORGANELSBETH,NIGHTSISTERSPIRIT|399|93','GRANDMASTERLUKE,JEDIKNIGHTCAL,LEIAJEDITRAINING|377|93'],
+  STRANGER:['LORDVADER,APPO,OPERATIVE|4433|91','SATELESHAN,BASTILASHAN,JEDIKNIGHTREVAN|395|88','SATELESHAN,JEDIKNIGHTREVAN,JOLEEBINDO|4783|77','STRANGER,MAULHATEFUELED,STARKILLER|857|74','SATELESHAN,BASTILASHAN,JEDIKNIGHTREVAN|25800|71','DARTHBANE,SITHASSASSIN|249|66','QUEENAMIDALA,MASTERQUIGON,PADAWANOBIWAN|922|66','SITHPALPATINE,DARTHBANE|418|65','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|346|63'],
+  JEDIMASTERMACEWINDU:['DARTHMALGUS,DARTHMALAK,DARTHREVAN|352|100','THIRDSISTER,GRANDINQUISITOR,SEVENTHSISTER|331|100','GRANDMASTERLUKE,JEDIKNIGHTCAL,JEDIKNIGHTLUKE|304|100','LORDVADER,APPO,OPERATIVE|232|100','SITHPALPATINE,DARTHBANE|190|100','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|187|100','DARTHMALGUS,BASTILASHANDARK,DARTHMALAK|177|100','QUEENAMIDALA,MASTERQUIGON,PADAWANOBIWAN|150|100','SITHPALPATINE,WATTAMBOR|132|100','GRANDMASTERLUKE,HERMITYODA,JEDIKNIGHTLUKE|626|99'],
+  EMPERORPALPATINE:['GLHONDO,CAPTAINSILVO,VANE|446|100','JEDIMASTERKENOBI,AHSOKATANO,COMMANDERAHSOKA|353|100','GLHONDO,BRUTUS,VANE|214|100','SUPREMELEADERKYLOREN,DARKREY|205|100','MAZKANATA,KIX,QUIGGOLD|187|100','JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|3888|99','LORDVADER,APPO,OPERATIVE|995|99','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|1103|99','STRANGER,MAULHATEFUELED,STARKILLER|714|99','GLHONDO,SM33,VANE|590|99'],
+  RACCOON:['SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|1916|97','SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|1789|96','LORDVADER,APPO,OPERATIVE|2895|94'],
+  SUPREMELEADERKYLOREN:['DARTHBANE,DARTHREVAN|85|91','DARTHBANE,SITHASSASSIN|355|88','STRANGER,MAULHATEFUELED,STARKILLER|34|88','DARTHBANE,DARTHMALAK|221|87','DARTHBANE,COUNTDOOKU|1270|86','DARTHBANE,DARTHSIDIOUS|52|84','DARTHBANE,MAUL|45|84'],
+  GRANDMASTERLUKE:['SITHPALPATINE,DARTHMALAK,WATTAMBOR|71|100','SITHPALPATINE,SITHTROOPER,WATTAMBOR|65|100','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|29|100','SITHPALPATINE,COUNTDOOKU,WATTAMBOR|25|100','SITHPALPATINE,DARTHSIDIOUS,WATTAMBOR|25|100','JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|22|100','SITHPALPATINE,WATTAMBOR|281|99'],
+  JEDIMASTERKENOBI:['BAYLANSKOLL,MARROK,SHINHATI|2019|97','GLLEIA,CAPTAINDROGAN,R2D2_LEGENDARY|348|97','SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|127|98','GLAHSOKATANO,EZRAEXILE,PADAWANSABINE|47|97','MANDALORBOKATAN,IG12,PAZVIZSLA|548|96','GRANDMASTERLUKE,JEDIKNIGHTCAL,LEIAJEDITRAINING|192|95','LORDVADER,APPO,OPERATIVE|21|100'],
+  GLLEIA:['SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|2114|94','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|956|94','RACCOON|745|90','STRANGER,MAULHATEFUELED,STARKILLER|672|88','STRANGER,STARKILLER,TARONMALICOS|80|88','SITHPALPATINE,DARTHBANE|444|83','GRANDMASTERLUKE,JEDIKNIGHTCAL,LEIAJEDITRAINING|436|82','RACCOON,GAMORREANGUARD,HUMANTHUG|207|81'],
+  QUEENAMIDALA:['DARTHBANE,VADER|449|99','DARTHBANE,COUNTDOOKU|9440|98','DARTHBANE,SITHTROOPER|1919|98','DARTHBANE,MAUL|504|98','SUPREMELEADERKYLOREN,DARKREY,KYLORENUNMASKED|604|98','SUPREMELEADERKYLOREN,DARKREY,GENERALHUX|497|98','DARTHBANE,SITHASSASSIN|2687|97','SITHPALPATINE,DARTHBANE|663|97','DARTHBANE,DARTHSIDIOUS|759|96','RACCOON,GAMORREANGUARD,HUMANTHUG|899|92'],
+  DARTHBANE:['JEDIMASTERKENOBI,COMMANDERAHSOKA,GENERALKENOBI|3|100','GRANDMASTERLUKE,HERMITYODA,JEDIKNIGHTLUKE|2|100','STRANGER,MAULHATEFUELED,STARKILLER|2|100','BAYLANSKOLL,MARROK,SHINHATI|1|100']
+};
+
+/* ROTE · Rise of the Empire (datos de genskaar.github.io/tb_empire) */
 window.ROTE = [
   { fase:1, relic:5, planetas:[ {n:'Mustafar',lado:'DS',estrellas3:248333333}, {n:'Corellia',lado:'MX',estrellas3:238333333}, {n:'Coruscant',lado:'LS',estrellas3:248333333} ] },
   { fase:2, relic:6, planetas:[ {n:'Geonosis',lado:'DS',estrellas3:316000000}, {n:'Felucia',lado:'MX',estrellas3:316000000}, {n:'Bracca',lado:'LS',estrellas3:303500000} ] },
