@@ -161,12 +161,47 @@ function toDB(arr){
 async function loadDB(force){
   const cache = lsGet('swgoh_db2');
   if(cache && !force && Date.now()-cache.t < 3*864e5 && Object.keys(cache.chars).length>100){ S.chars=cache.chars; S.ships=cache.ships; return; }
+  // 1) archivos subidos al repo (characters.json / ships.json descargados de swgoh.gg)
+  const local = async f => { try{ const r=await fetch(f,{cache:'no-cache'}); if(r.ok) return parseLoose(await r.text()); }catch(e){} return null; };
+  let c = await local('characters.json'), s = await local('ships.json');
+  S.dbSrc = c ? 'archivo characters.json del repo' : '';
+  // 2) si no están, se piden a swgoh.gg
   try{
-    const [c,s] = await Promise.all([api('characters'), api('ships').catch(()=>[])]);
-    S.chars = toDB(c); S.ships = toDB(s);
-    if(Object.keys(S.chars).length<100) throw new Error('lista de personajes incompleta');
-    S.dbErr=''; lsSet('swgoh_db2',{t:Date.now(),chars:S.chars,ships:S.ships});
-  }catch(e){ S.dbErr=String(e.message||e); if(cache){S.chars=cache.chars;S.ships=cache.ships;} }
+    if(!c){ c = await api('characters'); S.dbSrc='swgoh.gg en vivo'; }
+    if(!s){ s = await api('ships').catch(()=>[]); }
+  }catch(e){ S.dbErr=String(e.message||e); }
+  const chars = toDB(c||[]);
+  if(Object.keys(chars).length>100){
+    S.chars=chars; S.ships=toDB(s||[]); S.dbErr='';
+    lsSet('swgoh_db2',{t:Date.now(),chars:S.chars,ships:S.ships});
+  } else {
+    if(!S.dbErr) S.dbErr='lista de personajes incompleta';
+    const manual = lsGet('swgoh_db_manual');
+    if(manual){ S.chars=manual.chars; S.ships=manual.ships||{}; S.dbSrc='archivo cargado a mano'; S.dbErr=''; }
+    else if(cache){ S.chars=cache.chars; S.ships=cache.ships; }
+  }
+}
+// acepta el JSON tal cual o una página guardada que lo contiene
+function parseLoose(txt){
+  try{ return JSON.parse(txt); }catch(e){}
+  const a=txt.indexOf('['), b=txt.lastIndexOf(']');
+  if(a<0||b<a) throw new Error('no encontré la lista');
+  const raw=txt.slice(a,b+1).replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  return JSON.parse(raw);
+}
+function loadManualFile(file, kind){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const db=toDB(parseLoose(rd.result)); if(Object.keys(db).length<10) throw new Error('lista vacía');
+      const prev=lsGet('swgoh_db_manual')||{chars:{},ships:{}};
+      if(kind==='ships') prev.ships=db; else prev.chars=db;
+      lsSet('swgoh_db_manual',prev);
+      if(kind==='ships') S.ships=db; else { S.chars=db; S.dbErr=''; S.dbSrc='archivo cargado a mano'; }
+      render();
+    }catch(e){ alert('Ese archivo no es la lista de swgoh.gg: '+e.message); }
+  };
+  rd.readAsText(file);
 }
 function normPlayer(p){
   const units = new Map();
@@ -272,7 +307,7 @@ function renderTabs(){
 function render(){
   const app=document.getElementById('app');
   const list = accs();
-  const warn = S.dbErr && !Object.keys(S.chars).length ? `<div class="err-box" style="margin-bottom:12px">No cargó la base de personajes de swgoh.gg (${esc(S.dbErr)}), por eso faltan fotos y facciones. Pulsa ⟳ Actualizar en un rato.</div>` : '';
+  const warn = !Object.keys(S.chars).length ? `<div class="err-box" style="margin-bottom:12px">Faltan fotos y facciones: swgoh.gg no deja que Netlify lea su lista de personajes${S.dbErr?' ('+esc(S.dbErr)+')':''}. Se arregla una sola vez subiendo esa lista al repo: mira los pasos en <a href="#" id="goDiag" style="color:#fff;font-weight:600">Diagnóstico</a>.</div>` : '';
   if(!list.length && !['diag','rival'].includes(S.sec)){
     const a = S.sel==='all'?null:S.acc[S.sel];
     app.innerHTML = warn + (a && a.st==='err'
@@ -515,7 +550,18 @@ function vDiag(){
   const n=Object.keys(S.chars).length;
   const bad=n?[...ids].filter(i=>!S.chars[i]):[];
   return `<div class="panel"><h2>Diagnóstico</h2>
-  <p>Base de personajes: <b>${n}</b> · naves: <b>${Object.keys(S.ships).length}</b> ${S.dbErr?`<span class="chip falta">${esc(S.dbErr)}</span>`:'<span class="chip listo">OK</span>'}</p>
+  <p>Base de personajes: <b>${n}</b> · naves: <b>${Object.keys(S.ships).length}</b> ${n?`<span class="chip listo">OK · ${esc(S.dbSrc||'guardada')}</span>`:`<span class="chip falta">${esc(S.dbErr||'sin datos')}</span>`}</p>
+  <div class="note" style="margin:10px 0">
+    <b>Fotos y facciones (se hace una sola vez, y otra vez cuando salgan personajes nuevos):</b>
+    <ol style="margin:6px 0 6px 18px;padding:0">
+      <li>En tu navegador abre <a href="https://swgoh.gg/api/characters/" target="_blank" rel="noopener">swgoh.gg/api/characters/</a> y guárdalo con <b>Ctrl + S</b> con el nombre <b>characters.json</b>.</li>
+      <li>Haz lo mismo con <a href="https://swgoh.gg/api/ships/" target="_blank" rel="noopener">swgoh.gg/api/ships/</a> → <b>ships.json</b>.</li>
+      <li>Sube los dos archivos a la raíz del repo en GitHub (junto a index.html). La página los usa sola, en todos tus dispositivos.</li>
+    </ol>
+    <span class="small">¿Solo quieres probar en este navegador? Cárgalos aquí:</span>
+    <div class="row" style="margin-top:6px"><label class="btn ghost" style="cursor:pointer">characters.json<input type="file" id="fChars" accept=".json,application/json" hidden></label>
+    <label class="btn ghost" style="cursor:pointer">ships.json<input type="file" id="fShips" accept=".json,application/json" hidden></label></div>
+  </div>
   <table><thead><tr><th>Cuenta</th><th>Código</th><th>Estado</th><th>Datos guardados</th></tr></thead><tbody>
   ${S.acc.map(a=>`<tr><td>${esc(a.cfg.nombre)}</td><td>${a.cfg.codigo}</td><td><span class="dot ${a.st}" style="display:inline-block"></span> ${a.st==='ok'?'OK':a.st==='err'?'Error: '+esc(a.err):'Cargando'}</td><td>${a.t?new Date(a.t).toLocaleString('es-EC'):'—'}</td></tr>`).join('')}
   </tbody></table>
@@ -543,6 +589,9 @@ function bind(){
   on('pDef','change',e=>{S.plan.ndef=Math.max(1,+e.target.value||1);render()});
   on('pCasi','change',e=>{S.plan.casi=e.target.checked;render()});
   on('rvGo','click',()=>loadRival($('rvCode').value));
+  on('goDiag','click',e=>{e.preventDefault();S.sec='diag';renderTabs();render()});
+  on('fChars','change',e=>{if(e.target.files[0])loadManualFile(e.target.files[0],'chars')});
+  on('fShips','change',e=>{if(e.target.files[0])loadManualFile(e.target.files[0],'ships')});
   on('rvCode','keydown',e=>{if(e.key==='Enter')loadRival(e.target.value)});
   document.querySelectorAll('.rv-load').forEach(b=>b.onclick=()=>loadRival(b.dataset.c));
   document.querySelectorAll('.rv-del').forEach(b=>b.onclick=()=>{lsSet('swgoh_rivales',rivals().filter(r=>r.codigo!==b.dataset.c));render()});
