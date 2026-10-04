@@ -4,7 +4,7 @@
 //   ?path=characters | ships -> base de unidades (nombre, imagen, facciones, lado)
 // Las respuestas se recortan para no pasar el límite de 6 MB de las funciones de Netlify.
 
-const UA = 'Mozilla/5.0 (RadarSWGOH; uso personal)';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36';
 
 function json(status, data, maxAge) {
   return {
@@ -44,7 +44,7 @@ exports.handler = async (event) => {
 
   try {
     const r = await fetch(`https://swgoh.gg/api/${path}/`, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' }
+      headers: { 'User-Agent': UA, Accept: 'application/json,text/plain,*/*', 'Accept-Language': 'es-EC,es;q=0.9,en;q=0.8' }
     });
     if (!r.ok) return json(r.status, { error: `swgoh.gg respondió ${r.status}` });
     const data = await r.json();
