@@ -716,7 +716,7 @@ async function loadGuild(gid, force){
     }
     if(!info.members.length) throw new Error('el gremio llegó sin miembros');
     G.info = info;
-  }catch(e){ G.st = G.info?'ok':'err'; G.err=String(e.message||e); if(S.sec==='tw') render(); return; }
+  }catch(e){ G.err=String(e.message||e); if(!G.info && cache?.info){ G.info=cache.info; if(!Object.keys(G.members||{}).length) G.members=cache.members||{}; } if(!G.info){ G.st='err'; if(S.sec==='tw') render(); return; } }
   // 2) roster de cada miembro (de 3 en 3 para no saturar swgoh.gg)
   const list = G.info.members, mineByCode = {};
   S.acc.forEach(a=>{ if(a.p) mineByCode[a.cfg.codigo]=a; });
@@ -739,16 +739,7 @@ async function loadGuild(gid, force){
   lsSet('swgoh_g_'+gid,{t:G.t,info:G.info,members:G.members});
   if(S.sec==='tw') render();
 }
-function loadGuildFile(file, gid){
-  const rd=new FileReader();
-  rd.onload=()=>{ try{
-      const info=slimGuildInfo(parseAny(rd.result));
-      const G=S.tw.guilds[gid]=S.tw.guilds[gid]||{members:{}};
-      G.info=info; G.st='ok'; G.err=''; lsSet('swgoh_g_'+gid,{t:0,info,members:G.members||{}});
-      loadGuild(gid,false);
-    }catch(e){ alert('Ese archivo no es el de swgoh.gg/api/guild-profile: '+e.message); } };
-  rd.readAsText(file);
-}
+function loadGuildFile(file, gid){ const rd=new FileReader(); rd.onload=()=>useGuildText(rd.result,gid); rd.readAsText(file); }
 
 /* ---------- plantillas de defensa ---------- */
 let _twT=null, _twTkey='';
@@ -892,11 +883,7 @@ function vTW(list){
     ${!gl.length?'<p class="muted">Cargando tus cuentas para saber en qué gremios estás…</p>':''}</div>`;
   if(!gid) return head;
   if(!G || (G.st==='load' && !G.info)) return head+`<div class="panel">Leyendo el gremio en swgoh.gg…</div>`;
-  if(G.st==='err' && !G.info) return head+`<div class="err-box">No pude leer el gremio (${esc(G.err)}).</div>
-     <div class="panel"><h3>Plan B (una sola vez)</h3><ol class="small" style="margin:0 0 8px 18px;line-height:1.8">
-     <li>Abre <a href="https://swgoh.gg/api/guild-profile/${gid}/" target="_blank" rel="noopener">swgoh.gg/api/guild-profile/${gid}/</a> y guárdalo con <b>Ctrl + S</b> como <b>gremio_${gid}.json</b>.</li>
-     <li>Súbelo a la raíz del repo (sirve en todos tus dispositivos) o cárgalo aquí:</li></ol>
-     <label class="btn" style="cursor:pointer">Cargar gremio_${gid}.json<input type="file" id="twFile" accept=".json,.html,.htm" hidden></label></div>`;
+  if(G.st==='err' && !G.info) return head+twManualBox(gid,true);
   const I=G.info, total=I.members.length, loaded=Object.keys(G.members||{}).length;
   const prog = G.st==='load' ? `<div class="row" style="margin-top:8px"><div class="bar" style="flex:1"><i style="width:${(G.done||0)/total*100}%"></i></div><span class="small">${G.done||0}/${total} rosters</span></div>` : '';
   let out = head + `<div class="panel"><h2>${esc(I.name)} <a class="small" href="https://swgoh.gg/g/${gid}/" target="_blank" rel="noopener">ver en swgoh.gg ↗</a> · <a class="small" href="https://swgoh.gg/g/${gid}/tw-history/" target="_blank" rel="noopener">historial de TW ↗</a></h2>
@@ -904,8 +891,8 @@ function vTW(list){
     <div class="stat"><div class="v">${total}</div><div class="l">Miembros</div></div>
     <div class="stat"><div class="v">${loaded}</div><div class="l">Rosters leídos</div></div>
     <div class="stat"><div class="v">${G.t?new Date(G.t).toLocaleDateString('es-EC'):'—'}</div><div class="l">Última lectura</div></div></div>
-    ${prog}${G.fail?.length?`<p class="small muted">No se pudieron leer: ${G.fail.map(esc).join(', ')}</p>`:''}
-    <div class="row" style="margin-top:8px"><button class="btn ghost" id="twReload" ${G.st==='load'?'disabled':''}>⟳ Releer rosters del gremio</button><span class="small muted">Tarda 1–2 minutos (50 rosters). Queda guardado 12 h.</span></div></div>`;
+    ${prog}${S.tw.manual?twManualBox(gid,false):''}${G.fail?.length?`<p class="small muted">No se pudieron leer: ${G.fail.map(esc).join(', ')}</p>`:''}
+    <div class="row" style="margin-top:8px"><button class="btn ghost" id="twReload" ${G.st==='load'?'disabled':''}>⟳ Releer rosters del gremio</button><button class="btn ghost" id="twManual">📋 Actualizar lista de miembros</button><span class="small muted">Tarda 1–2 minutos (50 rosters). Queda guardado 12 h.</span></div></div>`;
   if(!loaded) return out;
   const P = twPlan(G);
   const stratTxt = {gl:'Leyendas (GL) al frente', trampa:'Trampas al frente · GL al fondo', equil:'Equilibrado (mezcla en todos)'};
@@ -923,6 +910,30 @@ function vTW(list){
   out += `<div class="row" style="margin-bottom:12px">${tabs.map(([k,t])=>`<button class="acc-tab tw-v ${S.tw.view===k?'on':''}" data-v="${k}">${t}</button>`).join('')}<button class="btn ghost" id="twCopy">📋 Copiar plan para Discord</button></div>`;
   out += ({mapa:twMapa, equipos:twEquipos, miembros:twMiembros, ideas:twIdeas}[S.tw.view]||twMapa)(P,G);
   return out;
+}
+function twManualBox(gid, first){
+  const url=`https://swgoh.gg/api/guild-profile/${gid}/`;
+  return `<div class="panel"><h3>${first?'Falta la lista de miembros del gremio':'Actualizar la lista de miembros'}</h3>
+   ${first?'<p class="small muted">swgoh.gg no deja que Netlify lea la lista del gremio (los rosters de cada miembro sí). Dásela una vez así:</p>':''}
+   <ol class="small" style="margin:0 0 8px 18px;line-height:1.9">
+     <li>Abre <a href="${url}" target="_blank" rel="noopener"><b>la lista del gremio en swgoh.gg ↗</b></a> (se ve mucho texto: es normal).</li>
+     <li>Pulsa <b>Ctrl + A</b> y luego <b>Ctrl + C</b>.</li>
+     <li>Vuelve aquí, pega con <b>Ctrl + V</b> en el cuadro y pulsa <b>Usar lista</b>.</li></ol>
+   <textarea id="twPaste" placeholder="Pega aquí (Ctrl + V)" style="width:100%;height:90px;background:var(--bg2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px monospace"></textarea>
+   <div class="row" style="margin-top:8px"><button class="btn" id="twPasteGo">Usar lista</button>
+   <label class="btn ghost" style="cursor:pointer">…o cargar archivo guardado<input type="file" id="twFile" accept=".json,.html,.htm,.txt" hidden></label></div>
+   <p class="small muted" style="margin-top:8px">Queda guardado en este navegador. Para que sirva en todos tus dispositivos, guarda esa misma página con Ctrl + S como <b>gremio_${gid}.json</b> y súbela a la raíz del repo. Solo hay que repetirlo cuando entren o salgan miembros.</p></div>`;
+}
+function useGuildText(txt, gid){
+  try{
+    const info=slimGuildInfo(parseAny(txt));
+    if(!info.members.length) throw new Error('no vienen miembros');
+    const G=S.tw.guilds[gid]=S.tw.guilds[gid]||{members:{}};
+    G.info=info; G.st=''; G.err='';
+    const prev=lsGet('swgoh_g_'+gid);
+    lsSet('swgoh_g_'+gid,{t:0,info,members:prev?.members||G.members||{}});
+    S.tw.manual=false; loadGuild(gid,false);
+  }catch(e){ alert('No reconocí la lista del gremio: '+e.message+'. Asegúrate de copiar toda la página (Ctrl + A).'); }
 }
 function zoneHold(z){ return z.list.length ? Math.round(z.list.reduce((s,x)=>s+x.hold,0)/z.list.length) : 0; }
 function twMapa(P){
@@ -1040,6 +1051,8 @@ function bind(){
   on('twAddGo','click',()=>addGuild($('twAdd').value));
   on('twAdd','keydown',e=>{if(e.key==='Enter')addGuild(e.target.value)});
   on('twReload','click',()=>loadGuild(S.tw.gid,true));
+  on('twPasteGo','click',()=>useGuildText($('twPaste').value,S.tw.gid));
+  on('twManual','click',()=>{S.tw.manual=!S.tw.manual;render()});
   on('twFile','change',e=>{if(e.target.files[0])loadGuildFile(e.target.files[0],S.tw.gid)});
   const twSet=(k,v)=>{S.tw.opts[k]=v;lsSet('swgoh_tw_opts',S.tw.opts);render()};
   on('twStrat','change',e=>twSet('strat',e.target.value));
