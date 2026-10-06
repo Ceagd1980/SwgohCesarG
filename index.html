@@ -104,6 +104,15 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .rchip .rv-del:hover{color:var(--bad)}
 .pct{font:700 18px Rajdhani;color:#fff}
 tr.rv-row td{background:rgba(226,72,90,.08)}
+.twmap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(6,auto);gap:10px}
+.twlab{display:flex;justify-content:space-between;font:600 13px Rajdhani;color:var(--tx3);margin-bottom:4px}
+.twz{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;min-width:0}
+.twz:hover{border-color:#3d5683}.twz.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.twz.fleet{background:#122844}
+.twz-h{display:flex;align-items:center;gap:8px;margin-bottom:4px}.twz-h b{font:700 20px Rajdhani}.twz-h .chip{margin-left:auto}
+.twc{display:flex;flex-direction:column;align-items:center;font:600 11px Rajdhani;color:var(--tx2);max-width:64px;text-align:center}
+.twsq{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+@media (max-width:760px){.twmap{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none}.twz{grid-column:auto !important;grid-row:auto !important}}
 footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 @media (max-width:640px){.squads{grid-template-columns:1fr}.accrow .an{width:84px}main{padding:10px}}
 </style>
@@ -132,7 +141,7 @@ const S = {
   plan:{mode:'gac', ndef:5, casi:false},
   rival:{code:'', st:'', err:'', p:null, units:new Map()}
 };
-const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['rival','🔍 Revisar rival'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
+const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['rival','🔍 Revisar rival'],['tw','⚔ Gremios / TW'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
 const META_TAGS = new Set(['Leader','Fleet Commander','Order 66 Raid','Attacker','Support','Tank','Healer']);
 
 /* ======================= DATOS ======================= */
@@ -154,12 +163,12 @@ function toDB(arr){
   const out={};
   (arr||[]).forEach(u=>{
     const id=u.b||u.base_id; if(!id) return;
-    out[id]={name:u.n||u.name, image:u.i||u.image, cat:u.c||u.categories||[], al:u.a||u.alignment||'', role:u.r||u.role||''};
+    out[id]={name:u.n||u.name, image:u.i||u.image, cat:u.c||u.categories||[], al:u.a||u.alignment||'', role:u.r||u.role||'', slug:u.s||((u.url||'').match(/units\/([^/]+)/)||[])[1]||''};
   });
   return out;
 }
 async function loadDB(force){
-  const cache = lsGet('swgoh_db2');
+  const cache = lsGet('swgoh_db3');
   if(cache && !force && Date.now()-cache.t < 3*864e5 && Object.keys(cache.chars).length>100){ S.chars=cache.chars; S.ships=cache.ships; return; }
   // 1) archivos subidos al repo (characters.json / ships.json descargados de swgoh.gg)
   const local = async f => { try{ const r=await fetch(f,{cache:'no-cache'}); if(r.ok) return parseLoose(await r.text()); }catch(e){} return null; };
@@ -173,7 +182,7 @@ async function loadDB(force){
   const chars = toDB(c||[]);
   if(Object.keys(chars).length>100){
     S.chars=chars; S.ships=toDB(s||[]); S.dbErr='';
-    lsSet('swgoh_db2',{t:Date.now(),chars:S.chars,ships:S.ships});
+    lsSet('swgoh_db3',{t:Date.now(),chars:S.chars,ships:S.ships});
   } else {
     if(!S.dbErr) S.dbErr='lista de personajes incompleta';
     const manual = lsGet('swgoh_db_manual');
@@ -275,7 +284,17 @@ function evalIds(ids, a, min=7){
 }
 const chipTxt = {listo:'Listo',casi:'Casi',falta:'No disponible'};
 
+/* Counters importados por el usuario (páginas de swgoh.gg guardadas) y counters.json del repo */
+S.ctrRepo = {};
+function ctrImported(){ return lsGet('swgoh_ctr_import')||{}; }
+function ctrSource(lead){
+  const imp=ctrImported()[lead]; if(imp&&imp.rows?.length) return {rows:imp.rows,src:`importado de swgoh.gg el ${new Date(imp.t).toLocaleDateString('es-EC')}${imp.season?' · '+imp.season:''}`};
+  const rep=S.ctrRepo[lead]; if(rep&&rep.rows?.length) return {rows:rep.rows,src:`counters.json del repo${rep.season?' · '+rep.season:''}`};
+  return {rows:null,src:COUNTERS_FUENTE};
+}
 function countersFor(lead){
+  const s=ctrSource(lead);
+  if(s.rows) return s.rows.slice().sort((x,y)=>(y.win-x.win)||(y.seen-x.seen));
   const map=new Map();
   (COUNTERS_BASE[lead]||[]).forEach(s=>{
     const [squad,seen,win]=s.split('|'); const ids=squad.split(',').map(x=>x.trim()).filter(Boolean);
@@ -284,6 +303,52 @@ function countersFor(lead){
   });
   return [...map.values()].sort((x,y)=>(y.win-x.win)||(y.seen-x.seen));
 }
+/* Lee una página de counters de swgoh.gg guardada con Ctrl+S */
+function parseCountersPage(html){
+  const lead = (html.match(/gac\/counters\/([A-Z0-9_]+)\/?["?]/)||html.match(/d_lead=([A-Z0-9_]+)/)||[])[1];
+  const sm = html.replace(/<[^>]+>/g,' ').match(/Season\s*(\d+)\s*-\s*(5v5|3v3)/i);
+  const season = sm ? `Temporada ${sm[1]} · ${sm[2]}` : '';
+  const parts = html.split(/[?&](?:amp;)?a_lead=/).slice(1);
+  const map=new Map(); let acc=null;
+  for(const part of parts){
+    const ld=(part.match(/^([A-Z0-9_]+)/)||[])[1]; if(!ld) continue;
+    const cut = part.split(/[?&](?:amp;)?d_member=/)[0];
+    const mem=[...cut.matchAll(/[?&](?:amp;)?a_member=([A-Z0-9_]+)/g)].map(m=>m[1]);
+    if(!acc || acc.lead!==ld) acc={lead:ld,mem:new Set()};
+    mem.forEach(m=>acc.mem.add(m));
+    const text=part.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ');
+    const seen=+((text.match(/Seen\s*([\d.,]+\s*K?)/i)||[])[1]||'0').replace(/,/g,'').replace(/\s*K$/i,'000').replace(/\.(\d)000$/,'$100');
+    const win=+((text.match(/Win\s*%\s*([\d.]+)/i)||[])[1]||0);
+    if(!seen) continue;
+    const ids=[acc.lead,...[...acc.mem].filter(m=>m!==acc.lead)];
+    const k=ids[0]+'|'+ids.slice(1).sort().join(',');
+    const prev=map.get(k);
+    if(prev){ const t=prev.seen+seen; prev.win=Math.round((prev.win*prev.seen+win*seen)/t); prev.seen=t; }
+    else map.set(k,{ids,seen,win});
+    acc=null;
+  }
+  return {lead, season, rows:[...map.values()]};
+}
+function importCounterFiles(files){
+  const out=[]; let pending=files.length; if(!pending) return;
+  [...files].forEach(f=>{
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const r=parseCountersPage(rd.result);
+        if(r.lead && r.rows.length){ const all=ctrImported(); all[r.lead]={t:Date.now(),season:r.season,rows:r.rows}; lsSet('swgoh_ctr_import',all); out.push(`✔ ${lab(r.lead)}: ${r.rows.length} equipos`); S.counterLead=r.lead; }
+        else out.push(`✘ ${f.name}: no encontré counters (¿guardaste la página completa?)`);
+      }catch(e){ out.push(`✘ ${f.name}: ${e.message}`); }
+      if(--pending===0){ S.importMsg=out.join(' · '); render(); }
+    };
+    rd.readAsText(f);
+  });
+}
+function downloadCountersJSON(){
+  const data={...S.ctrRepo, ...ctrImported()};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='counters.json'; a.click();
+}
 function ctrRow(r, list){
   const acc = list.map(a=>{const st=evalIds(r.ids,a);return `<span class="mini ${st}" title="${esc(a.cfg.nombre)}: ${chipTxt[st]}">${esc(a.cfg.nombre)}</span>`}).join('');
   const mine = S.sel==='all'?null:list[0];
@@ -291,7 +356,8 @@ function ctrRow(r, list){
     <div class="meta"><b class="pct">${r.win}%</b> <span class="small muted">· ${fmt(r.seen)} batallas</span><div class="small">${r.ids.map(lab).map(esc).join(' + ')}</div></div>
     <div class="acc">${acc}</div></div>`;
 }
-const swggLink = id => `<a href="https://swgoh.gg/gac/counters/${id}/" target="_blank" rel="noopener">Ver counters en swgoh.gg ↗</a>`;
+const swggUrl = id => `https://swgoh.gg/gac/counters/${id}/?season_id=${TEMPORADA_5V5}`;
+const swggLink = id => `<a href="${swggUrl(id)}" target="_blank" rel="noopener">Ver counters 5v5 en swgoh.gg ↗</a>`;
 
 /* ======================= CABECERA ======================= */
 function renderTabs(){
@@ -308,14 +374,14 @@ function render(){
   const app=document.getElementById('app');
   const list = accs();
   const warn = !Object.keys(S.chars).length ? `<div class="err-box" style="margin-bottom:12px">Faltan fotos y facciones: swgoh.gg no deja que Netlify lea su lista de personajes${S.dbErr?' ('+esc(S.dbErr)+')':''}. Se arregla una sola vez subiendo esa lista al repo: mira los pasos en <a href="#" id="goDiag" style="color:#fff;font-weight:600">Diagnóstico</a>.</div>` : '';
-  if(!list.length && !['diag','rival'].includes(S.sec)){
+  if(!list.length && !['diag','rival','tw'].includes(S.sec)){
     const a = S.sel==='all'?null:S.acc[S.sel];
     app.innerHTML = warn + (a && a.st==='err'
       ? `<div class="err-box">No se pudo cargar <b>${esc(a.cfg.nombre)}</b> (${a.cfg.codigo}): ${esc(a.err)}.</div>`
       : `<div class="panel">Cargando datos de swgoh.gg…</div>`);
     return;
   }
-  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
+  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,tw:vTW,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
   app.innerHTML = warn + f(list);
   bind();
 }
@@ -433,20 +499,32 @@ function vEquipos(list){
 }
 
 function leaderSelect(id, selected){
-  const withData = Object.keys(COUNTERS_BASE).sort((x,y)=>lab(x).localeCompare(lab(y)));
-  const others = [...new Set(EQUIPOS.map(q=>q.lider))].filter(x=>!COUNTERS_BASE[x]).sort((x,y)=>lab(x).localeCompare(lab(y)));
+  const withData = [...new Set([...Object.keys(COUNTERS_BASE),...Object.keys(ctrImported()),...Object.keys(S.ctrRepo)])].sort((x,y)=>lab(x).localeCompare(lab(y)));
+  const others = [...new Set(EQUIPOS.map(q=>q.lider))].filter(x=>!withData.includes(x)).sort((x,y)=>lab(x).localeCompare(lab(y)));
   const opt = x => `<option value="${x}" ${selected===x?'selected':''}>${esc(lab(x))}${lab(x)!==uname(x)?' · '+esc(uname(x)):''}</option>`;
   return `<select id="${id}"><optgroup label="Con datos de counters">${withData.map(opt).join('')}</optgroup><optgroup label="Otros líderes (ver en swgoh.gg)">${others.map(opt).join('')}</optgroup></select>`;
 }
 function vCounters(list){
-  const L=S.counterLead, rows=countersFor(L);
+  const L=S.counterLead, rows=countersFor(L), src=ctrSource(L), imp=ctrImported();
+  const impList=Object.keys(imp).sort((x,y)=>lab(x).localeCompare(lab(y)));
   return `<div class="panel"><h2>Counters de GAC</h2>
   <div class="ctrl"><span class="muted">El rival tiene de líder:</span>${leaderSelect('cLead',L)}
     <input type="text" id="cOther" list="allChars" placeholder="…u otro personaje">
     <datalist id="allChars">${Object.values(S.chars).map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
     ${swggLink(L)}</div>
-  <div class="row" style="margin-bottom:10px">${portrait(L,null,{free:true})}<div class="small muted">Cada fila es un equipo atacante con su % de victorias. A la derecha, en qué cuentas lo puedes usar: <span class="mini listo">verde</span> listo a R7+, <span class="mini casi">naranja</span> lo tienes pero bajo, <span class="mini">gris</span> te falta alguien.<br>Fuente: ${esc(COUNTERS_FUENTE)}.</div></div>
-  ${rows.length? rows.map(r=>ctrRow(r,list)).join('') : `<div class="note">Todavía no tengo counters guardados para ${esc(lab(L))}. ${swggLink(L)}</div>`}</div>`;
+  <div class="row" style="margin-bottom:10px">${portrait(L,null,{free:true})}<div class="small muted">Cada fila es un equipo atacante con su % de victorias. A la derecha, en qué cuentas lo puedes usar: <span class="mini listo">verde</span> listo a R7+, <span class="mini casi">naranja</span> lo tienes pero bajo, <span class="mini">gris</span> te falta alguien.<br>Fuente: <b>${esc(src.src)}</b>.</div></div>
+  ${rows.length? rows.slice(0,25).map(r=>ctrRow(r,list)).join('') : `<div class="note">Todavía no hay counters para ${esc(lab(L))}. Impórtalos con los pasos de abajo.</div>`}</div>
+  <div class="panel"><h2>📥 Importar counters 5v5 completos de swgoh.gg</h2>
+    <ol class="small" style="margin:0 0 10px 18px;padding:0;line-height:1.8">
+      <li>Abre la página de counters del líder: <a href="${swggUrl(L)}" target="_blank" rel="noopener"><b>counters 5v5 de ${esc(lab(L))} ↗</b></a> (o la de cualquier otro líder).</li>
+      <li>En esa página pulsa <b>Ctrl + S</b> y guárdala como <b>“Página web, solo HTML”</b>.</li>
+      <li>Cárgala aquí (puedes elegir varias páginas a la vez, una por líder):</li>
+    </ol>
+    <div class="row"><label class="btn" style="cursor:pointer">Elegir páginas guardadas<input type="file" id="fCtr" accept=".html,.htm,text/html" multiple hidden></label>
+    ${impList.length?`<button class="btn ghost" id="dlCtr">Descargar counters.json</button>`:''}</div>
+    ${S.importMsg?`<p class="small" style="margin-top:8px">${esc(S.importMsg)}</p>`:''}
+    ${impList.length?`<p class="small muted" style="margin-top:10px">Importados en este navegador: ${impList.map(id=>`<a href="#" class="ctr-go" data-l="${id}">${esc(lab(id))}</a>`).join(' · ')}<br>Para tenerlos en todos tus dispositivos, pulsa “Descargar counters.json” y sube ese archivo a la raíz del repo.</p>`:''}
+  </div>`;
 }
 
 /* ======================= RIVAL ======================= */
@@ -565,8 +643,369 @@ function vDiag(){
   <table><thead><tr><th>Cuenta</th><th>Código</th><th>Estado</th><th>Datos guardados</th></tr></thead><tbody>
   ${S.acc.map(a=>`<tr><td>${esc(a.cfg.nombre)}</td><td>${a.cfg.codigo}</td><td><span class="dot ${a.st}" style="display:inline-block"></span> ${a.st==='ok'?'OK':a.st==='err'?'Error: '+esc(a.err):'Cargando'}</td><td>${a.t?new Date(a.t).toLocaleString('es-EC'):'—'}</td></tr>`).join('')}
   </tbody></table>
+  ${n?(()=>{const u=twTemplates().unresolved;return `<h3 style="margin-top:14px">Nombres de las tier lists (TW) que no encontré</h3>${u.length?`<p>${u.map(x=>`<code>${esc(x)}</code>`).join(' · ')}</p><p class="small muted">Esos equipos quedan sin estadística exacta. Pásame la lista y los corrijo.</p>`:'<p class="muted">Todos encontrados ✔</p>'}`})():''}
   <h3 style="margin-top:14px">IDs de equipos.js que swgoh.gg no reconoce</h3>
   ${!n?'<p class="muted">No se puede revisar hasta que cargue la base de personajes.</p>':bad.length?`<p>${bad.map(i=>`<code>${esc(i)}</code>`).join(' · ')}</p><p class="small muted">Pásame esta lista y los corrijo.</p>`:'<p class="muted">Todo correcto ✔</p>'}</div>`;
+}
+
+/* ======================= GREMIOS / TW ======================= */
+S.tw = { gid:null, guilds:{}, zoneSel:null, q:'', view:'mapa',
+  opts: Object.assign({strat:'gl', relic:7, perMember:6, slots:25, fleetSlots:25, reserve:'none', maxTypes:3, fill:true}, lsGet('swgoh_tw_opts')||{}) };
+const GL_FALLBACK = new Set(['GLREY','SUPREMELEADERKYLOREN','GRANDMASTERLUKE','SITHPALPATINE','JEDIMASTERKENOBI','LORDVADER','JABBATHEHUTT','GLLEIA','GLAHSOKATANO','GLHONDO']);
+const isGL = id => (S.chars[id]?.cat||[]).includes('Galactic Legend') || GL_FALLBACK.has(id);
+const slugify = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/['’"().,]/g,'').replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+/* ---------- lista de gremios ---------- */
+function guildList(){
+  const map = new Map();
+  S.acc.forEach(a=>{ const d=a.p?.data; if(d?.guild_id){ const g=map.get(d.guild_id)||{id:d.guild_id,name:d.guild_name||d.guild_id,mine:[]}; g.mine.push(a.cfg.nombre); map.set(d.guild_id,g);} });
+  [...(window.GREMIOS_EXTRA||[]), ...(lsGet('swgoh_gremios_extra')||[])].forEach(x=>{ if(x?.id && !map.has(x.id)) map.set(x.id,{id:x.id,name:x.nombre||x.id,mine:[]}); });
+  Object.entries(S.tw.guilds).forEach(([id,g])=>{ const e=map.get(id); if(e && g.info?.name) e.name=g.info.name; });
+  return [...map.values()];
+}
+function addGuild(txt){
+  const id = (String(txt).match(/\/g\/([A-Za-z0-9_-]{10,40})/)||[])[1] || (String(txt).trim().match(/^[A-Za-z0-9_-]{10,40}$/)||[])[0];
+  if(!id){ alert('Pega el enlace del gremio en swgoh.gg (swgoh.gg/g/…/) o su ID.'); return; }
+  const list = lsGet('swgoh_gremios_extra')||[];
+  if(!list.some(x=>x.id===id)) list.push({id}); lsSet('swgoh_gremios_extra',list);
+  S.tw.gid=id; loadGuild(id,false);
+}
+
+/* ---------- datos compactos de cada miembro ---------- */
+function compactPlayer(p){
+  const d=p.data||{}, u=[];
+  (p.units||[]).forEach(x=>{ const v=x.data||x; const g=v.gear_level||0, ct=v.combat_type||1;
+    if(ct===1 && g<12 && !v.is_galactic_legend) return;
+    if(ct===2 && (v.rarity||0)<5) return;
+    u.push([v.base_id, g>=13?Math.max(0,(v.relic_tier||2)-2):-1, g, v.rarity||0, v.power||0, v.is_galactic_legend?1:0, ct]);
+  });
+  return { n:d.name||'', c:String(d.ally_code||''), gp:d.galactic_power||0, u };
+}
+function memberUnits(m){
+  if(m._u) return m._u;
+  const map=new Map(); (m.u||[]).forEach(([id,relic,gear,stars,power,gl,ct])=>map.set(id,{id,relic,gear,stars,power,gl:!!gl,ct,zetas:0,omis:0}));
+  Object.defineProperty(m,'_u',{value:map,enumerable:false}); return map;
+}
+function parseAny(txt){
+  try{ return JSON.parse(txt); }catch(e){}
+  const pre = txt.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  const raw = (pre?pre[1]:txt).replace(/<[^>]+>/g,'').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+  const a=raw.indexOf('{'), b=raw.lastIndexOf('}'); if(a<0||b<a) throw new Error('no encontré datos');
+  return JSON.parse(raw.slice(a,b+1));
+}
+function slimGuildInfo(j){
+  const d=j.data||j;
+  return { guild_id:d.guild_id, name:d.name, galactic_power:d.galactic_power, member_count:d.member_count,
+    members:(d.members||[]).filter(m=>m.ally_code).map(m=>({ally_code:String(m.ally_code), player_name:m.player_name, galactic_power:m.galactic_power, league_name:m.league_name, member_level:m.member_level, last_activity_time:m.last_activity_time})) };
+}
+
+/* ---------- carga del gremio ---------- */
+async function loadGuild(gid, force){
+  const G = S.tw.guilds[gid] = S.tw.guilds[gid] || {st:'', members:{}, err:''};
+  const cache = lsGet('swgoh_g_'+gid);
+  if(cache && !force && !G.info){ G.info=cache.info; G.members=cache.members||{}; G.t=cache.t; G.st='ok'; }
+  if(cache && !force && Date.now()-cache.t < 12*3600e3 && Object.keys(G.members).length>=(G.info?.members?.length||1)) { if(S.sec==='tw') render(); return; }
+  if(G.st==='load') return;
+  G.st='load'; G.err=''; G.done=0; if(S.sec==='tw') render();
+  // 1) datos del gremio
+  try{
+    let info=null;
+    try{ info = slimGuildInfo(await api('guild-profile/'+gid)); }catch(e){
+      const r = await fetch(`gremio_${gid}.json`,{cache:'no-cache'}).catch(()=>null);
+      if(r && r.ok) info = slimGuildInfo(parseAny(await r.text())); else throw e;
+    }
+    if(!info.members.length) throw new Error('el gremio llegó sin miembros');
+    G.info = info;
+  }catch(e){ G.st = G.info?'ok':'err'; G.err=String(e.message||e); if(S.sec==='tw') render(); return; }
+  // 2) roster de cada miembro (de 3 en 3 para no saturar swgoh.gg)
+  const list = G.info.members, mineByCode = {};
+  S.acc.forEach(a=>{ if(a.p) mineByCode[a.cfg.codigo]=a; });
+  const fresh = {};
+  let i=0, lastR=0; G.done=0; G.fail=[];
+  const worker = async ()=>{
+    while(i<list.length){
+      const m=list[i++];
+      try{
+        let p = mineByCode[m.ally_code]?.p;
+        if(!p){ try{ p = await fetchPlayer(m.ally_code); }catch(e){ await new Promise(r=>setTimeout(r,1500)); p = await fetchPlayer(m.ally_code); } }
+        fresh[m.ally_code] = compactPlayer(p);
+      }catch(e){ if(G.members[m.ally_code]) fresh[m.ally_code]=G.members[m.ally_code]; else G.fail.push(m.player_name||m.ally_code); }
+      G.done++;
+      if(S.sec==='tw' && Date.now()-lastR>900){ lastR=Date.now(); render(); }
+    }
+  };
+  await Promise.all([worker(),worker(),worker()]);
+  G.members = fresh; G.t=Date.now(); G.st='ok';
+  lsSet('swgoh_g_'+gid,{t:G.t,info:G.info,members:G.members});
+  if(S.sec==='tw') render();
+}
+function loadGuildFile(file, gid){
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+      const info=slimGuildInfo(parseAny(rd.result));
+      const G=S.tw.guilds[gid]=S.tw.guilds[gid]||{members:{}};
+      G.info=info; G.st='ok'; G.err=''; lsSet('swgoh_g_'+gid,{t:0,info,members:G.members||{}});
+      loadGuild(gid,false);
+    }catch(e){ alert('Ese archivo no es el de swgoh.gg/api/guild-profile: '+e.message); } };
+  rd.readAsText(file);
+}
+
+/* ---------- plantillas de defensa ---------- */
+let _twT=null, _twTkey='';
+function twTemplates(){
+  const key = Object.keys(S.chars).length+'|'+EQUIPOS.length+'|'+TW_META.length;
+  if(_twT && _twTkey===key) return _twT;
+  const byName={}, bySlug={};
+  Object.entries(S.chars).forEach(([id,c])=>{ const k=slugify(c.name); if(!byName[k]) byName[k]=id; if(c.slug) bySlug[c.slug]=id; });
+  const res = n => byName[slugify(n)] || bySlug[slugify(n)] || (S.chars[n]?n:null);
+  const groups={}, unresolved=new Set();
+  const G = lead => groups[lead] = groups[lead] || {lead, variants:[], flex:null, hold:null, tier:null, est:true, nombre:null};
+  TW_META.forEach(m=>{
+    const ids=m.e.map(n=>{ const id=res(n); if(!id) unresolved.add(n); return id; });
+    if(!ids[0]) return;
+    const g=G(ids[0]);
+    if(ids.every(Boolean)) g.variants.push({ids, hold:m.hold});
+    if(g.hold==null || m.hold>g.hold){ g.hold=m.hold; g.tier=m.t; }
+    g.est=false;
+  });
+  const atk={}; Object.entries(window.TW_ATAQUE||{}).forEach(([n,v])=>{ const id=res(n); if(id) atk[id]=v; else unresolved.add(n); });
+  EQUIPOS.forEach(sq=>{ const g=G(sq.lider); g.flex=sq; g.nombre=g.nombre||sq.nombre; });
+  const tierEst={1:14,2:11,3:8,4:6,5:5};
+  Object.values(groups).forEach(g=>{
+    if(g.hold==null) g.hold = tierEst[g.flex?.tier]||6;
+    g.nombre = g.nombre || lab(g.lead);
+    g.atk = atk[g.lead]||null;
+  });
+  _twT={groups, unresolved:[...unresolved], atk}; _twTkey=key; return _twT;
+}
+function squadStats(ids,U){ let r=0,p=0,gl=false; ids.forEach(id=>{const u=U.get(id); r+=Math.max(0,u.relic); p+=u.power; if(u.gl) gl=true;}); return {avgR:r/ids.length, power:p, gl}; }
+function memberSquads(U, relicMin){
+  const out=[];
+  Object.values(twTemplates().groups).forEach(g=>{
+    const L=U.get(g.lead); if(!L || L.ct!==1 || (L.stars<7 && !L.gl)) return;
+    const cands=[];
+    g.variants.forEach(v=>{ if(v.ids.every(id=>U.has(id))) cands.push({ids:v.ids, meta:true}); });
+    if(g.flex){
+      const core=g.flex.core.filter(id=>U.has(id));
+      if(core.length===g.flex.core.length){
+        const flex=g.flex.flex.filter(id=>U.has(id) && !core.includes(id)).sort((a,b)=>(U.get(b).relic-U.get(a).relic)||(U.get(b).power-U.get(a).power));
+        const ids=[...core,...flex].slice(0,5);
+        if(ids.length>=5 || (g.flex.flex.length===0 && ids.length===g.flex.core.length)) cands.push({ids, meta:false});
+      }
+    }
+    let best=null;
+    cands.forEach(c=>{
+      const st=squadStats(c.ids,U), ok=c.ids.every(id=>U.get(id).relic>=relicMin);
+      const rank=(ok?1000:0)+(c.meta?50:0)+st.avgR;
+      if(!best || rank>best.rank) best={...c,...st,ok,rank};
+    });
+    if(!best) return;
+    const score = g.hold*(0.55+0.45*Math.min(best.avgR,9)/9);
+    out.push({lead:g.lead, nombre:g.nombre, hold:g.hold, est:g.est, tier:g.tier, atk:g.atk, ids:best.ids, avgR:best.avgR, power:best.power, gl:best.gl, ok:best.ok, meta:best.meta, score});
+  });
+  return out.sort((a,b)=>b.score-a.score);
+}
+
+/* ---------- plan de TW ---------- */
+function twReserved(sq,O){ return (O.reserve==='gl' && sq.gl) || (O.reserve==='atk' && sq.atk && sq.atk[0]==='S'); }
+function twPlan(G){
+  const O=S.tw.opts, members=Object.values(G.members||{});
+  const pool=[], perMember={}, stats={};
+  members.forEach(m=>{
+    const U=memberUnits(m), all=memberSquads(U,O.relic);
+    all.forEach(s=>{ const st=stats[s.lead]=stats[s.lead]||{lead:s.lead,nombre:s.nombre,hold:s.hold,est:s.est,tier:s.tier,atk:s.atk,ok:0,casi:0,relSum:0,gl:s.gl,placed:0,zones:{},reserved:false}; if(s.ok){st.ok++;st.relSum+=s.avgR;} else st.casi++; if(s.gl) st.gl=true; });
+    const used=new Set(), picked=[];
+    all.filter(s=>s.ok).forEach(s=>{
+      if(twReserved(s,O)){ stats[s.lead].reserved=true; return; }
+      if(picked.length<O.perMember && s.ids.every(id=>!used.has(id))){ s.ids.forEach(id=>used.add(id)); picked.push({...s, member:m.n, code:m.c}); }
+    });
+    perMember[m.c]=picked; pool.push(...picked);
+  });
+  // grupos por líder: cada territorio lleva pocos tipos de equipo, apilados
+  const groups={}; pool.forEach(s=>{ (groups[s.lead]=groups[s.lead]||{lead:s.lead,gl:s.gl,hold:s.hold,copies:[]}).copies.push(s); if(s.gl) groups[s.lead].gl=true; });
+  Object.values(groups).forEach(g=>g.copies.sort((a,b)=>b.score-a.score));
+  const zones=TW_MAPA.filter(z=>z.tipo==='pj').map(z=>({...z, list:[], extra:false}));
+  const maxT=O.maxTypes>0?O.maxTypes:99;
+  const room=z=>O.slots-z.list.length, types=z=>new Set(z.list.map(s=>s.lead)).size;
+  const move=(z,g,n)=>{ g.copies.splice(0,n).forEach(s=>{s.zone=z.id; z.list.push(s);}); };
+  const pickGroup=(z,ranked)=>{
+    const avail=ranked.filter(g=>g.copies.length && !z.list.some(s=>s.lead===g.lead)); if(!avail.length) return null;
+    // se respeta el orden de prioridad; solo entre equipos de dureza parecida se prefiere el que más copias tiene
+    const best=avail[0], win=avail.filter(g=>g.gl===best.gl && g.hold>=best.hold-6);
+    const need=Math.ceil(room(z)/Math.max(1,maxT-types(z)));
+    return win.find(g=>g.copies.length>=need) || win.find(g=>g.copies.length>=need/2) || best;
+  };
+  const fillZone=(z,ranked)=>{ while(room(z)>0 && types(z)<maxT){ const g=pickGroup(z,ranked); if(!g) break; move(z,g,Math.min(room(z),g.copies.length)); } };
+  const G_=()=>Object.values(groups);
+  const byHold=(a,b)=>(b.hold-a.hold)||(b.copies.length-a.copies.length);
+  const glFirst=(a,b)=>(b.gl-a.gl)||byHold(a,b);
+  const zc=c=>zones.filter(z=>z.col===c), cols=[...new Set(zones.map(z=>z.col))].sort((a,b)=>a-b);
+  if(O.strat==='gl'){
+    zones.slice().sort((a,b)=>a.col-b.col||a.fila-b.fila).forEach(z=>fillZone(z,G_().sort(glFirst)));
+  } else if(O.strat==='trampa'){
+    const first=cols[0], last=cols[cols.length-1];
+    zc(first).forEach(z=>fillZone(z,G_().filter(g=>!g.gl).sort(byHold)));
+    zc(last).forEach(z=>fillZone(z,G_().sort(glFirst)));
+    cols.slice(1,-1).forEach(c=>zc(c).forEach(z=>fillZone(z,G_().sort(byHold))));
+    zc(first).forEach(z=>fillZone(z,G_().sort(byHold)));
+  } else {
+    for(let r=0;r<maxT;r++) zones.slice().sort((a,b)=>a.col-b.col||a.fila-b.fila).forEach(z=>{ if(room(z)>0 && types(z)<maxT){ const g=pickGroup(z,G_().sort(byHold)); if(g) move(z,g,Math.min(room(z),Math.ceil(O.slots/maxT),g.copies.length)); } });
+    zones.forEach(z=>fillZone(z,G_().sort(byHold)));
+  }
+  if(O.fill) G_().filter(g=>g.copies.length).sort(byHold).forEach(g=>{
+    while(g.copies.length){
+      const open=zones.filter(z=>room(z)>0); if(!open.length) return;
+      const z=open.find(z=>z.list.some(s=>s.lead===g.lead)) || open.sort((a,b)=>(a.list.length/O.slots-b.list.length/O.slots)||a.col-b.col)[0];
+      if(!z.list.some(s=>s.lead===g.lead)) z.extra=true;
+      move(z,g,Math.min(room(z),g.copies.length));
+    }
+  });
+  const rest=G_().flatMap(g=>g.copies);
+  zones.forEach(z=>z.list.forEach(s=>{ const st=stats[s.lead]; st.placed++; st.zones[z.id]=(st.zones[z.id]||0)+1; }));
+  // flota
+  const fz=TW_MAPA.filter(z=>z.tipo==='nave').map(z=>({...z,list:[]})).sort((a,b)=>a.col-b.col);
+  const fleets=members.map(m=>{
+    const U=memberUnits(m), ships=[...U.values()].filter(u=>u.ct===2);
+    const caps=ships.filter(u=>/^CAPITAL/.test(u.id) || (S.ships[u.id]?.cat||[]).some(c=>/capital/i.test(c)) || /capital/i.test(S.ships[u.id]?.role||'')).sort((a,b)=>b.power-a.power);
+    if(!caps.length) return null;
+    const rest7=ships.filter(u=>u.id!==caps[0].id).sort((a,b)=>b.power-a.power).slice(0,7);
+    if(rest7.length<3) return null;
+    return {member:m.n, code:m.c, cap:caps[0].id, ids:[caps[0].id,...rest7.map(u=>u.id)], power:caps[0].power+rest7.reduce((s,u)=>s+u.power,0)};
+  }).filter(Boolean).sort((a,b)=>b.power-a.power);
+  fleets.forEach(f=>{ const z=fz.find(z=>z.list.length<O.fleetSlots); if(z){ z.list.push(f); f.zone=z.id; } });
+  return {zones, fleetZones:fz, fleets, pool, rest, perMember, stats:Object.values(stats), members};
+}
+function ctrNeedGL(lead){
+  const rows=countersFor(lead).slice(0,10); if(!rows.length) return null;
+  return Math.round(100*rows.filter(r=>isGL(r.ids[0])).length/rows.length);
+}
+
+/* ---------- vista ---------- */
+function vTW(list){
+  const gl=guildList(), O=S.tw.opts;
+  if(!S.tw.gid && gl.length) S.tw.gid=gl[0].id;
+  const gid=S.tw.gid, G=S.tw.guilds[gid];
+  if(gid && !G) setTimeout(()=>loadGuild(gid,false),0);
+  const head = `<div class="panel"><h2>⚔ Gremios · Guerra Territorial</h2>
+    <div class="row" style="margin-bottom:10px">${gl.map(g=>`<button class="acc-tab ${g.id===gid?'on':''} tw-g" data-g="${g.id}">${esc(g.name)}<small>${g.mine.length?esc(g.mine.join(', ')):'agregado'}</small></button>`).join('')}
+      <input type="text" id="twAdd" placeholder="Pegar enlace de otro gremio (swgoh.gg/g/…)" style="width:280px"><button class="btn ghost" id="twAddGo">Agregar</button></div>
+    ${!gl.length?'<p class="muted">Cargando tus cuentas para saber en qué gremios estás…</p>':''}</div>`;
+  if(!gid) return head;
+  if(!G || (G.st==='load' && !G.info)) return head+`<div class="panel">Leyendo el gremio en swgoh.gg…</div>`;
+  if(G.st==='err' && !G.info) return head+`<div class="err-box">No pude leer el gremio (${esc(G.err)}).</div>
+     <div class="panel"><h3>Plan B (una sola vez)</h3><ol class="small" style="margin:0 0 8px 18px;line-height:1.8">
+     <li>Abre <a href="https://swgoh.gg/api/guild-profile/${gid}/" target="_blank" rel="noopener">swgoh.gg/api/guild-profile/${gid}/</a> y guárdalo con <b>Ctrl + S</b> como <b>gremio_${gid}.json</b>.</li>
+     <li>Súbelo a la raíz del repo (sirve en todos tus dispositivos) o cárgalo aquí:</li></ol>
+     <label class="btn" style="cursor:pointer">Cargar gremio_${gid}.json<input type="file" id="twFile" accept=".json,.html,.htm" hidden></label></div>`;
+  const I=G.info, total=I.members.length, loaded=Object.keys(G.members||{}).length;
+  const prog = G.st==='load' ? `<div class="row" style="margin-top:8px"><div class="bar" style="flex:1"><i style="width:${(G.done||0)/total*100}%"></i></div><span class="small">${G.done||0}/${total} rosters</span></div>` : '';
+  let out = head + `<div class="panel"><h2>${esc(I.name)} <a class="small" href="https://swgoh.gg/g/${gid}/" target="_blank" rel="noopener">ver en swgoh.gg ↗</a> · <a class="small" href="https://swgoh.gg/g/${gid}/tw-history/" target="_blank" rel="noopener">historial de TW ↗</a></h2>
+    <div class="grid-stats"><div class="stat"><div class="v">${fmtM(I.galactic_power)}</div><div class="l">PG del gremio</div></div>
+    <div class="stat"><div class="v">${total}</div><div class="l">Miembros</div></div>
+    <div class="stat"><div class="v">${loaded}</div><div class="l">Rosters leídos</div></div>
+    <div class="stat"><div class="v">${G.t?new Date(G.t).toLocaleDateString('es-EC'):'—'}</div><div class="l">Última lectura</div></div></div>
+    ${prog}${G.fail?.length?`<p class="small muted">No se pudieron leer: ${G.fail.map(esc).join(', ')}</p>`:''}
+    <div class="row" style="margin-top:8px"><button class="btn ghost" id="twReload" ${G.st==='load'?'disabled':''}>⟳ Releer rosters del gremio</button><span class="small muted">Tarda 1–2 minutos (50 rosters). Queda guardado 12 h.</span></div></div>`;
+  if(!loaded) return out;
+  const P = twPlan(G);
+  const stratTxt = {gl:'Leyendas (GL) al frente', trampa:'Trampas al frente · GL al fondo', equil:'Equilibrado (mezcla en todos)'};
+  out += `<div class="panel"><h2>Opciones del plan</h2><div class="ctrl">
+    <span class="muted">Estrategia:</span><select id="twStrat">${Object.entries(stratTxt).map(([k,t])=>`<option value="${k}" ${O.strat===k?'selected':''}>${t}</option>`).join('')}</select>
+    <span class="muted">Reliquia mín.:</span><select id="twRelic">${[5,6,7,8,9].map(r=>`<option ${O.relic===r?'selected':''} value="${r}">R${r}</option>`).join('')}</select>
+    <span class="muted">Equipos por miembro:</span><input type="number" id="twPer" min="1" max="20" value="${O.perMember}" style="width:64px">
+    <span class="muted">Cupos por territorio:</span><input type="number" id="twSlots" min="1" max="60" value="${O.slots}" style="width:64px">
+    <span class="muted">Flota:</span><input type="number" id="twFSlots" min="1" max="60" value="${O.fleetSlots}" style="width:64px">
+    <span class="muted">Tipos por territorio:</span><select id="twMaxT">${[2,3,4,5,0].map(n=>`<option value="${n}" ${O.maxTypes===n?'selected':''}>${n?'máx. '+n:'sin límite'}</option>`).join('')}</select>
+    <span class="muted">Guardar para atacar:</span><select id="twRes"><option value="none" ${O.reserve==='none'?'selected':''}>nada</option><option value="gl" ${O.reserve==='gl'?'selected':''}>las GL</option><option value="atk" ${O.reserve==='atk'?'selected':''}>los tier S de ataque</option></select>
+    <label class="chk"><input type="checkbox" id="twFill" ${O.fill?'checked':''}> Si falta, rellenar con otros equipos</label></div>
+    <p class="small muted">${{gl:'Igual que hacen ahora: las GL llenan primero A1/A2 y el resto va detrás por dureza.',trampa:'Las defensas con mejor % de defensas que aguantan (sin GL) van al frente para que el rival gaste counters y tiempo; las GL quedan al fondo, donde conquistar da el doble de banners.',equil:'Cada territorio recibe una mezcla de equipos duros y medianos.'}[O.strat]} Cada territorio lleva solo ${O.maxTypes||'varios'} tipos de equipo apilados: el rival necesita muchos counters del mismo tipo.</p></div>`;
+  const tabs=[['mapa','🗺 Mapa'],['equipos','📊 Equipos del gremio'],['miembros','👥 Qué pone cada uno'],['ideas','💡 Ideas']];
+  out += `<div class="row" style="margin-bottom:12px">${tabs.map(([k,t])=>`<button class="acc-tab tw-v ${S.tw.view===k?'on':''}" data-v="${k}">${t}</button>`).join('')}<button class="btn ghost" id="twCopy">📋 Copiar plan para Discord</button></div>`;
+  out += ({mapa:twMapa, equipos:twEquipos, miembros:twMiembros, ideas:twIdeas}[S.tw.view]||twMapa)(P,G);
+  return out;
+}
+function zoneHold(z){ return z.list.length ? Math.round(z.list.reduce((s,x)=>s+x.hold,0)/z.list.length) : 0; }
+function twMapa(P){
+  const O=S.tw.opts, colTxt={1:'Frente',2:'2ª línea',3:'3ª línea',4:'Fondo'};
+  const pos=z=>`grid-column:${5-z.col};grid-row:${z.filas===2?(z.fila===1?'1 / span 3':'4 / span 3'):`${(z.fila-1)*2+1} / span 2`}`;
+  const card=z=>{
+    const fleet=z.tipo==='nave', cap=fleet?O.fleetSlots:O.slots;
+    const grp={}; z.list.forEach(s=>{const k=fleet?s.cap:s.lead; grp[k]=(grp[k]||0)+1;});
+    const top=Object.entries(grp).sort((a,b)=>b[1]-a[1]).slice(0,fleet?6:5);
+    return `<div class="twz ${S.tw.zoneSel===z.id?'sel':''} ${fleet?'fleet':''}" data-z="${z.id}" style="${pos(z)}">
+      <div class="twz-h"><b>${z.id}</b><span class="small muted">${fleet?'🚀 Naves':colTxt[z.col]||''}</span><span class="chip ${z.list.length>=cap?'listo':'casi'}">${z.list.length}/${cap}</span></div>
+      ${fleet?'':`<div class="small muted">Dureza ${zoneHold(z)}% · ${Object.keys(grp).length} tipos${z.list.some(s=>s.gl)?' · '+z.list.filter(s=>s.gl).length+' GL':''}${z.extra?' · <span style="color:var(--warn)">relleno</span>':''}</div>`}
+      <div class="ports" style="margin-top:6px">${top.map(([id,n])=>`<div class="twc">${portrait(id,null,{sm:true,free:true,gl:!fleet&&isGL(id)})}<span>${esc(lab(id))} ×${n}</span></div>`).join('')||'<span class="small muted">vacío</span>'}</div></div>`;
+  };
+  const all=[...P.zones,...P.fleetZones];
+  const sel=all.find(z=>z.id===S.tw.zoneSel);
+  const totalSlots=P.zones.length*O.slots, placed=P.zones.reduce((s,z)=>s+z.list.length,0);
+  let out=`<div class="panel"><h2>Mapa de defensa</h2>
+    <p class="small muted">El rival entra por la <b>derecha</b> (A1/A2) y avanza hacia la izquierda: no puede atacar una columna hasta conquistar la de delante. Toca un territorio para ver quién pone qué. Equipos colocados: <b>${placed}/${totalSlots}</b>${P.rest.length?` · sobran ${P.rest.length} (quedan para atacar)`:''}${placed<totalSlots?` · <span style="color:var(--warn)">faltan ${totalSlots-placed}: sube "Equipos por miembro", baja la reliquia mínima o activa "rellenar"</span>`:''}.</p>
+    <div class="twlab"><span>← Fondo (D)</span><span>Frente (A) →</span></div>
+    <div class="twmap">${all.map(card).join('')}</div></div>`;
+  if(sel){
+    const fleet=sel.tipo==='nave';
+    out+=`<div class="panel"><h2>${sel.id} · ${sel.list.length} ${fleet?'flotas':'equipos'}</h2><div class="tbl-wrap"><table><thead><tr><th>Miembro</th><th>${fleet?'Flota':'Equipo'}</th><th class="n">${fleet?'Poder':'Reliq. media'}</th>${fleet?'':'<th class="n">Hold</th>'}</tr></thead><tbody>
+    ${sel.list.slice().sort((a,b)=>fleet?b.power-a.power:(a.lead.localeCompare(b.lead)||b.avgR-a.avgR)).map(s=>{const U=memberUnits(P.members.find(m=>m.c===s.code)||{});return `<tr><td>${esc(s.member)}</td><td><div class="ports">${s.ids.map(id=>portrait(id,U.get(id),{sm:true,min:fleet?null:S.tw.opts.relic})).join('')}</div></td><td class="n">${fleet?fmtM(s.power):'R'+s.avgR.toFixed(1)}</td>${fleet?'':`<td class="n">${s.hold}%${s.est?'*':''}</td>`}</tr>`}).join('')}
+    </tbody></table></div></div>`;
+  }
+  return out;
+}
+function twEquipos(P){
+  const rows=P.stats.filter(s=>s.ok+s.casi>0).sort((a,b)=>(b.hold-a.hold)||(b.ok-a.ok));
+  return `<div class="panel"><h2>Equipos que puede armar el gremio</h2>
+  <p class="small muted"><b>Tier def. / Hold</b> = tier list de defensa y % de defensas que aguantan; <b>Tier ataque</b> = tier list de ataque y % de victorias atacando (${esc(TW_FUENTE)}). * = estimado. <b>Listos</b> = miembros que la tienen completa a R${S.tw.opts.relic}+. <b>Counters con GL</b> = de sus mejores counters, cuántos necesitan una Leyenda: cuanto más alto, más caro le sale al rival.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Equipo</th><th class="n">Tier def.</th><th class="n">Hold</th><th class="n">Tier ataque</th><th>Mejor para</th><th class="n">Listos</th><th class="n">Bajos</th><th class="n">Reliq. media</th><th class="n">Counters con GL</th><th class="n">Colocados</th><th>Dónde</th></tr></thead><tbody>
+  ${rows.map(s=>{const need=ctrNeedGL(s.lead);return `<tr><td><div class="row">${portrait(s.lead,null,{sm:true,free:true,gl:s.gl})}<span><b>${esc(s.nombre)}</b>${s.gl?' <span class="chip casi">GL</span>':''}</span></div></td>
+  <td class="n">${s.tier||'–'}</td><td class="n"><b class="pct" style="color:${s.hold>=20?'var(--ok)':s.hold>=12?'#fff':'var(--tx3)'}">${s.hold}%</b>${s.est?'*':''}</td>
+  <td class="n">${s.atk?`${s.atk[0]} · ${s.atk[1]}%`:'–'}</td><td>${twRole(s)}</td><td class="n">${s.ok}</td><td class="n muted">${s.casi}</td><td class="n">${s.ok?'R'+(s.relSum/s.ok).toFixed(1):'–'}</td>
+  <td class="n">${need==null?'<span class="muted">–</span>':need+'%'}</td><td class="n">${s.placed}</td><td class="small">${Object.entries(s.zones).sort((a,b)=>a[0].localeCompare(b[0])).map(([z,n])=>`${z}×${n}`).join(' ')}</td></tr>`}).join('')}
+  </tbody></table></div></div>`;
+}
+function twRole(s){
+  const atkS = s.atk && (s.atk[0]==='S' || (s.atk[0]==='A' && s.atk[1]>=85));
+  if(s.reserved) return '<span class="chip casi">⚔ guardado</span>';
+  if(s.hold>=20 && !atkS) return '<span class="chip listo">🛡 Defensa</span>';
+  if(atkS && s.hold<25) return '<span class="chip casi">⚔ Ataque</span>';
+  if(s.hold>=20) return '<span class="chip listo">🛡 / ⚔ ambos</span>';
+  if(s.hold<11) return '<span class="chip falta">⚔ Ataque</span>';
+  return '<span class="muted small">relleno</span>';
+}
+function twMiembros(P){
+  const q=S.tw.q.toLowerCase(), mine=new Set(CUENTAS.map(c=>c.codigo));
+  const ms=P.members.slice().sort((a,b)=>(mine.has(b.c)-mine.has(a.c))||b.gp-a.gp).filter(m=>!q||m.n.toLowerCase().includes(q));
+  const fleetBy={}; P.fleets.forEach(f=>{ if(f.zone) fleetBy[f.code]=f; });
+  return `<div class="panel"><h2>Qué pone cada miembro</h2><div class="ctrl"><input type="text" id="twQ" placeholder="Buscar miembro…" value="${esc(S.tw.q)}"></div>
+  ${ms.map(m=>{const U=memberUnits(m), sq=P.perMember[m.c]||[], f=fleetBy[m.c];
+    return `<div class="accrow" style="align-items:flex-start;flex-wrap:wrap"><span class="an" style="width:150px">${mine.has(m.c)?'⭐ ':''}${esc(m.n)}<br><span class="small muted">${fmtM(m.gp)} · ${sq.length} def.</span></span>
+    <div style="flex:1;display:flex;flex-wrap:wrap;gap:10px">${sq.map(s=>`<div class="twsq"><span class="chip ${s.zone?'listo':''}">${s.zone||'reserva'}</span><div class="ports">${s.ids.map(id=>portrait(id,U.get(id),{sm:true,min:S.tw.opts.relic})).join('')}</div></div>`).join('')||'<span class="small muted">Sin equipos a la reliquia mínima.</span>'}
+    ${f?`<div class="twsq"><span class="chip listo">${f.zone}</span><div class="ports">${f.ids.slice(0,4).map(id=>portrait(id,U.get(id),{sm:true})).join('')}</div></div>`:''}</div></div>`}).join('')}</div>`;
+}
+function twIdeas(P){
+  const O=S.tw.opts;
+  const st=P.stats.filter(s=>s.ok>0);
+  const trap=st.filter(s=>!s.gl && s.ok>=3).sort((a,b)=>b.hold-a.hold||b.ok-a.ok).slice(0,6);
+  const gls=st.filter(s=>s.gl).sort((a,b)=>b.hold-a.hold);
+  const weak=st.filter(s=>!s.gl && s.hold<10 && s.ok>=5).sort((a,b)=>a.hold-b.hold).slice(0,5);
+  const front=P.zones.filter(z=>z.col===1);
+  const li=s=>`<li><b>${esc(s.nombre)}</b> · hold ${s.hold}%${s.est?'*':''} · ${s.ok} miembros listos${ctrNeedGL(s.lead)!=null?` · ${ctrNeedGL(s.lead)}% de sus counters usan GL`:''}</li>`;
+  return `<div class="cols">
+   <div class="panel"><h3>🛡 Candidatas para el frente (sin GL)</h3><p class="small muted">Las defensas más duras que el gremio tiene repetidas. Puestas en bloque en T1/B1 obligan al rival a tener muchos counters del mismo tipo.</p><ul class="small">${trap.map(li).join('')||'<li class="muted">Ninguna con 3+ copias.</li>'}</ul></div>
+   <div class="panel"><h3>👑 Sus Leyendas Galácticas</h3><p class="small muted">Según la tier list de defensa: SLKR aguanta ~42%, Rey GL ~38% y Leia GL ~28%, pero LV 22%, Ahsoka GL 19% y Hondo GL 16%. Varias GL aguantan menos que Stranger (40%), Bastila/JML (28%), Rotta (27%) o Cere (26%), y además son las mejores para atacar: ponerlas todas al frente gasta tu ataque.</p><ul class="small">${gls.map(li).join('')||'<li class="muted">Sin GL listas.</li>'}</ul></div>
+   <div class="panel"><h3>⚔ Mejor para atacar que para defender</h3><p class="small muted">Tier alto en ataque y poco hold en defensa: guárdalos para conquistar.</p><ul class="small">${st.filter(s=>s.atk && (s.atk[0]==='S'||s.atk[0]==='A') && s.hold<20).sort((a,b)=>b.atk[1]-a.atk[1]).slice(0,6).map(s=>`<li><b>${esc(s.nombre)}</b> · ataque ${s.atk[0]} (${s.atk[1]}%) · defensa ${s.hold}% · ${s.ok} listos</li>`).join('')||'<li class="muted">—</li>'}</ul>
+   <p class="small muted">Y estos casi nunca aguantan en defensa:</p><ul class="small">${weak.map(li).join('')||'<li class="muted">—</li>'}</ul></div>
+   <div class="panel"><h3>📌 Cómo queda el frente ahora</h3><ul class="small">${front.map(z=>`<li><b>${z.id}</b>: ${z.list.length}/${O.slots} equipos · dureza media ${zoneHold(z)}% · ${z.list.filter(s=>s.gl).length} GL</li>`).join('')}</ul>
+   <p class="small muted">Prueba cambiar la estrategia arriba y compara la dureza media del frente. Los porcentajes son de GAC 5v5: en TW el rival ataca con todo su roster, así que tómalos como guía, no como dato exacto.</p></div></div>`;
+}
+function twCopyText(P){
+  const lines=[`TW · ${S.tw.guilds[S.tw.gid]?.info?.name||''} · estrategia: ${{gl:'GL al frente',trampa:'trampas al frente',equil:'equilibrado'}[S.tw.opts.strat]}`]; P.zones.forEach(z=>{ const g={}; z.list.forEach(s=>g[s.lead]=(g[s.lead]||0)+1); lines.push(`${z.id}: `+Object.entries(g).map(([l,n])=>`${lab(l)} ×${n}`).join(', ')); }); lines.push('');
+  P.members.slice().sort((a,b)=>a.n.localeCompare(b.n)).forEach(m=>{
+    const sq=(P.perMember[m.c]||[]).filter(s=>s.zone); const f=P.fleets.find(f=>f.code===m.c && f.zone);
+    if(!sq.length && !f) return;
+    lines.push(`• ${m.n}: `+sq.map(s=>`${s.zone} ${lab(s.lead)}`).join(' | ')+(f?` | ${f.zone} flota ${lab(f.cap)}`:''));
+  });
+  return lines.join('\n');
 }
 
 /* ======================= EVENTOS ======================= */
@@ -589,9 +1028,30 @@ function bind(){
   on('pDef','change',e=>{S.plan.ndef=Math.max(1,+e.target.value||1);render()});
   on('pCasi','change',e=>{S.plan.casi=e.target.checked;render()});
   on('rvGo','click',()=>loadRival($('rvCode').value));
+  on('fCtr','change',e=>importCounterFiles(e.target.files));
+  on('dlCtr','click',downloadCountersJSON);
+  document.querySelectorAll('.ctr-go').forEach(a=>a.onclick=e=>{e.preventDefault();S.counterLead=a.dataset.l;render()});
   on('goDiag','click',e=>{e.preventDefault();S.sec='diag';renderTabs();render()});
   on('fChars','change',e=>{if(e.target.files[0])loadManualFile(e.target.files[0],'chars')});
   on('fShips','change',e=>{if(e.target.files[0])loadManualFile(e.target.files[0],'ships')});
+  document.querySelectorAll('.tw-g').forEach(b=>b.onclick=()=>{S.tw.gid=b.dataset.g;S.tw.zoneSel=null;render()});
+  document.querySelectorAll('.tw-v').forEach(b=>b.onclick=()=>{S.tw.view=b.dataset.v;render()});
+  document.querySelectorAll('.twz').forEach(b=>b.onclick=()=>{S.tw.zoneSel=S.tw.zoneSel===b.dataset.z?null:b.dataset.z;render()});
+  on('twAddGo','click',()=>addGuild($('twAdd').value));
+  on('twAdd','keydown',e=>{if(e.key==='Enter')addGuild(e.target.value)});
+  on('twReload','click',()=>loadGuild(S.tw.gid,true));
+  on('twFile','change',e=>{if(e.target.files[0])loadGuildFile(e.target.files[0],S.tw.gid)});
+  const twSet=(k,v)=>{S.tw.opts[k]=v;lsSet('swgoh_tw_opts',S.tw.opts);render()};
+  on('twStrat','change',e=>twSet('strat',e.target.value));
+  on('twRelic','change',e=>twSet('relic',+e.target.value));
+  on('twPer','change',e=>twSet('perMember',Math.max(1,+e.target.value||1)));
+  on('twSlots','change',e=>twSet('slots',Math.max(1,+e.target.value||1)));
+  on('twFSlots','change',e=>twSet('fleetSlots',Math.max(1,+e.target.value||1)));
+  on('twRes','change',e=>twSet('reserve',e.target.value));
+  on('twMaxT','change',e=>twSet('maxTypes',+e.target.value));
+  on('twFill','change',e=>twSet('fill',e.target.checked));
+  on('twQ','change',e=>{S.tw.q=e.target.value;render()});
+  on('twCopy','click',()=>{const G=S.tw.guilds[S.tw.gid]; if(!G) return; const t=twCopyText(twPlan(G)); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>alert('Plan copiado: pégalo en Discord.')).catch(()=>prompt('Copia el plan:',t));});
   on('rvCode','keydown',e=>{if(e.key==='Enter')loadRival(e.target.value)});
   document.querySelectorAll('.rv-load').forEach(b=>b.onclick=()=>loadRival(b.dataset.c));
   document.querySelectorAll('.rv-del').forEach(b=>b.onclick=()=>{lsSet('swgoh_rivales',rivals().filter(r=>r.codigo!==b.dataset.c));render()});
@@ -608,6 +1068,7 @@ document.getElementById('btnRefresh').onclick=async()=>{
   renderTabs();
   const qp=new URLSearchParams(location.search).get('rival');
   await loadDB(false);
+  try{ const r=await fetch('counters.json',{cache:'no-cache'}); if(r.ok){ const j=await r.json(); if(j && typeof j==='object' && !Array.isArray(j)) S.ctrRepo=j; } }catch(e){}
   await Promise.all(S.acc.map((_,i)=>loadAcc(i,false).then(()=>{renderTabs();render()})));
   if(qp){S.sec='rival';renderTabs();loadRival(qp);}
   renderTabs();render();

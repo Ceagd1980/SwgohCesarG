@@ -11,6 +11,9 @@ window.CUENTAS = [
   { nombre: 'DARTHRASEC2',     codigo: '295812246' }
 ];
 
+/* Temporada 5v5 que abren los enlaces de counters (cámbiala cuando salga una nueva temporada 5v5) */
+window.TEMPORADA_5V5 = 'CHAMPIONSHIPS_GRAND_ARENA_GA2_EVENT_SEASON_82';
+
 /* Abreviaturas que se muestran en vez del nombre largo (el nombre completo sale al pasar el ratón) */
 window.ABREV = {
   SITHPALPATINE:'SEE', SUPREMELEADERKYLOREN:'SLKR', GLREY:'Rey GL', GRANDMASTERLUKE:'JML', JEDIMASTERKENOBI:'JMK',
@@ -111,4 +114,102 @@ window.ROTE = [
   { fase:4, relic:8, planetas:[ {n:'Haven-class Medical Station',lado:'DS',estrellas3:500304479}, {n:'Kessel',lado:'MX',estrellas3:500304479}, {n:'Lothal',lado:'LS',estrellas3:524984167} ] },
   { fase:5, relic:9, planetas:[ {n:'Malachor',lado:'DS',estrellas3:729948167}, {n:'Vandor',lado:'MX',estrellas3:729948167}, {n:'Kafrene',lado:'LS',estrellas3:729948167} ] },
   { fase:6, relic:9, planetas:[ {n:'Death Star',lado:'DS',estrellas3:1246272567}, {n:'Hoth',lado:'MX',estrellas3:1246272567}, {n:'Scarif',lado:'LS',estrellas3:1188686629} ] }
+];
+
+/* =====================================================================
+   GUERRA TERRITORIAL (TW)
+   ===================================================================== */
+
+/* Gremios extra (los de tus 5 cuentas se detectan solos). ID = lo que va en swgoh.gg/g/ID/ */
+window.GREMIOS_EXTRA = [
+  { id: 'soUHsxSGQzCZpauteDFt1g', nombre: '???BrotherSithOrder???' },
+  { id: 'zZUQ0vrMRJSiUHSIz1rmcA', nombre: 'Remanente mandaloriana' }
+];
+
+/* Tier list de DEFENSA 5v5 de swgoh.gg (swgoh.gg/tier-list/gac/?side=defense) · Temporada 82 · 6-oct-2026.
+   t = tier · e = líder + miembros (nombres como salen en swgoh.gg) · hold = % de defensas que aguantan. */
+window.TW_FUENTE = 'swgoh.gg tier list GAC 5v5 · Temporada 82 · 6-oct-2026';
+window.TW_META = [
+ {t:'S',hold:39.8,e:['The Stranger','Barriss Offee','Maul (Hate-Fueled)','Starkiller','Visas Marr']},
+ {t:'S',hold:38.1,e:['Rey','Ben Solo','Cal Kestis','General Kenobi','Barriss Offee']},
+ {t:'S',hold:41.6,e:['Supreme Leader Kylo Ren','Rey (Dark Side Vision)','Sith Trooper','General Hux','Kylo Ren (Unmasked)']},
+ {t:'S',hold:28.3,e:['Leia Organa','Admiral Raddus','Captain Drogan','Jyn Erso','R2-D2']},
+ {t:'S',hold:19.3,e:['Ahsoka Tano','Ezra Bridger (Exile)','General Syndulla','Huyang','Padawan Sabine Wren']},
+ {t:'A',hold:27.3,e:['Rotta the Hutt','Cad Bane','Gamorrean Guard','Greedo','Mob Enforcer']},
+ {t:'A',hold:22.4,e:['Lord Vader','CC-1119 "Appo"','Disguised Clone Trooper','CX-2','RC-1262 "Scorch"']},
+ {t:'A',hold:11.1,e:['General Syndulla','Ezra Bridger (Exile)','Ahsoka Tano','Huyang','Padawan Sabine Wren']},
+ {t:'A',hold:21.3,e:['Jango Fett','4-LOM','Asajj Ventress (Dark Disciple)','Greef Karga','The Mandalorian']},
+ {t:'A',hold:15.7,e:['Pirate King Hondo Ohnaka','Brutus','Captain Silvo','SM-33','Vane']},
+ {t:'A',hold:25.9,e:['Cere Junda','Cal Kestis','Ahsoka Tano (Fulcrum)','Kylo Ren (Unmasked)','Taron Malicos']},
+ {t:'A',hold:28.2,e:['Bastila Shan','Jedi Master Luke Skywalker','Hermit Yoda','Jedi Knight Luke Skywalker','Wat Tambor']},
+ {t:'A',hold:22.5,e:['Sith Eternal Emperor','Bastila Shan (Fallen)','Darth Malak','Darth Malgus','Darth Revan']},
+ {t:'A',hold:21.0,e:['Baylan Skoll','Dengar','Hondo Ohnaka','Marrok','Shin Hati']},
+ {t:'A',hold:16.8,e:['Jabba the Hutt','Boushh (Leia Organa)','Embo','Krrsantan','Skiff Guard (Lando Calrissian)']},
+ {t:'A',hold:17.3,e:['Cassian Andor (Undercover)','Cinta Kaz','Kleya Marki','Luthen Rael','Vel Sartha']},
+ {t:'A',hold:18.1,e:['Jedi Master Kenobi','Ahsoka Tano (Snips)','Commander Ahsoka Tano','General Kenobi','Padmé Amidala']},
+ {t:'A',hold:25.0,e:['Doctor Aphra','BT-1','IG-90','0-0-0','Darth Vader']},
+ {t:'A',hold:21.1,e:['Boss Nass','Gungan Boomadier','Captain Tarpals','Gungan Phalanx','Jar Jar Binks']},
+ {t:'A',hold:21.3,e:["Bo-Katan (Mand'alor)",'Bo-Katan Kryze','IG-12 & Grogu','Paz Vizsla','The Mandalorian (Beskar Armor)']},
+ {t:'B',hold:12.5,e:['Queen Amidala','Grand Master Yoda','Master Qui-Gon','Padawan Obi-Wan','Shaak Ti']},
+ {t:'B',hold:20.4,e:['Savage Opress','Darth Nihilus','Darth Sion','Darth Talon','Darth Traya']},
+ {t:'B',hold:16.3,e:['Captain Carson Teva','Colonel Ward','Grogu & Anzellans','R5-D4','Zeb Orrelios (New Republic Pilot)']},
+ {t:'B',hold:17.8,e:['Satele Shan','Bastila Shan','Jedi Knight Revan','Jolee Bindo','Juhani']},
+ {t:'B',hold:15.0,e:['Maz Kanata','Hondo Ohnaka','Captain Ithano','Kix','Quiggold']},
+ {t:'B',hold:13.4,e:['Emperor Palpatine','Grand Moff Tarkin',"Mara Jade (The Emperor's Hand)",'Royal Guard',"Darth Vader (Duel's End)"]},
+ {t:'B',hold:16.6,e:['Darth Traya','Darth Nihilus','Darth Sion','Darth Talon','Savage Opress']},
+ {t:'B',hold:14.0,e:['Cobb Vanth','Chief Nebit','Coruscant Underworld Police','Jawa Scavenger','Lobot']},
+ {t:'B',hold:19.7,e:['Darth Maul','Darth Nihilus','Darth Sion','Darth Traya','Savage Opress']},
+ {t:'B',hold:12.3,e:['Third Sister','Eighth Brother','Fifth Brother','Grand Inquisitor','Seventh Sister']},
+ {t:'B',hold:19.4,e:['4-LOM','Asajj Ventress (Dark Disciple)','Boba Fett, Scion of Jango','Fennec Shand','Zuckuss']},
+ {t:'B',hold:12.8,e:['Great Mothers','Death Trooper (Peridea)','Morgan Elsbeth','Nightsister Spirit','Night Trooper']},
+ {t:'B',hold:15.7,e:['Finn','Resistance Hero Finn','Resistance Hero Poe','Rose Tico','Zorii Bliss']},
+ {t:'B',hold:20.9,e:['Admiral Ackbar','Captain Han Solo','Princess Leia','Stormtrooper Han','Stormtrooper Luke']},
+ {t:'B',hold:12.5,e:['Darth Nihilus','Darth Sion','Darth Talon','Darth Traya','Savage Opress']},
+ {t:'B',hold:10.1,e:['Jedi Master Mace Windu','Aayla Secura','Depa Billaba','Jocasta Nu','Temple Guard']},
+ {t:'B',hold:11.0,e:['Darth Malgus','Bastila Shan (Fallen)','Darth Malak','Darth Revan','Sith Marauder']},
+ {t:'B',hold:11.9,e:['Kelleran Beq','Depa Billaba','Jedi Master Mace Windu','Jocasta Nu','Temple Guard']},
+ {t:'B',hold:16.5,e:['Mon Mothma','Cara Dune','Kyle Katarn','Luthen Rael','Pao']},
+ {t:'B',hold:10.7,e:['Saw Gerrera','Baze Malbus','Chirrut Îmwe','Kyle Katarn','Luthen Rael']},
+ {t:'B',hold:12.5,e:['Padmé Amidala','Ahsoka Tano (Snips)','Jedi Knight Anakin','Commander Ahsoka Tano','General Kenobi']},
+ {t:'B',hold:10.5,e:['Admiral Trench','Count Dooku','Jango Fett','Nute Gunray','Wat Tambor']},
+ {t:'B',hold:10.1,e:['Omega (Fugitive)','Batcher','Crosshair (Scarred)','Hunter (Mercenary)','Wrecker (Mercenary)']},
+ {t:'B',hold:12.6,e:['CT-7567 "Rex"','ARC Trooper','Captain Rex','CT-21-0408 "Echo"','CT-5555 "Fives"']},
+ {t:'B',hold:8.4,e:['Darth Revan','Bastila Shan (Fallen)','Darth Malak','Darth Malgus','Sith Marauder']},
+ {t:'B',hold:12.8,e:['Qui-Gon Jinn','Jedi Knight Anakin','Kelleran Beq','Ki-Adi-Mundi','Mace Windu']},
+ {t:'B',hold:11.0,e:['General Skywalker','ARC Trooper','CT-21-0408 "Echo"','CT-5555 "Fives"','CT-7567 "Rex"']},
+ {t:'B',hold:9.0,e:['Major Partagaz','Dedra Meero','Director Krennic','Imperial Probe Droid','KX Security Droid']},
+ {t:'B',hold:11.4,e:['Hera Syndulla','Captain Rex','Chopper','Kanan Jarrus','Sabine Wren']},
+ {t:'B',hold:7.4,e:['Colonel Ward','Captain Carson Teva','Grogu & Anzellans','R5-D4','Zeb Orrelios (New Republic Pilot)']},
+ {t:'B',hold:8.2,e:['Boba Fett, Scion of Jango','4-LOM','Asajj Ventress (Dark Disciple)','Fennec Shand','Zuckuss']},
+ {t:'B',hold:9.1,e:['Commander Luke Skywalker','Threepio & Chewie','C-3PO','Chewbacca','Han Solo']},
+ {t:'B',hold:6.8,e:['Tarfful','Clone Wars Chewbacca','Veteran Smuggler Chewbacca','Yoda & Chewie','Zaalbar']},
+ {t:'B',hold:6.7,e:['Jedi Master Luke Skywalker','Grand Master Yoda','Hermit Yoda','Jedi Knight Cal Kestis','Jedi Knight Luke Skywalker']},
+ {t:'B',hold:7.8,e:['Captain Enoch','Death Trooper (Peridea)','Night Trooper','Scout Trooper','TIE Fighter Pilot']},
+ {t:'C',hold:10.3,e:['Dash Rendar','IG-11','Kuiil','L3-37','Vandor Chewbacca']},
+ {t:'C',hold:13.4,e:['Sana Starros','Cara Dune','Captain Han Solo','Rebel Officer Leia Organa','Stormtrooper Han']}
+];
+
+/* Tier list de ATAQUE 5v5 (swgoh.gg/tier-list/gac/) · Temporada 82: líder → [tier, % de victorias atacando] */
+window.TW_ATAQUE = {
+ 'Leia Organa':['S',91.6],'Supreme Leader Kylo Ren':['S',91.6],'The Stranger':['S',90.1],'Satele Shan':['S',82.0],'Jango Fett':['S',84.7],
+ 'Lord Vader':['A',87.9],'Ahsoka Tano':['A',90.4],'Darth Bane':['A',88.4],'Cere Junda':['A',83.6],'Baylan Skoll':['A',91.4],'Doctor Aphra':['A',89.3],
+ 'Sith Eternal Emperor':['A',81.9],'Queen Amidala':['A',77.1],'Jedi Master Kenobi':['A',83.6],'Pirate King Hondo Ohnaka':['A',81.9],'Omega (Fugitive)':['A',72.1],
+ 'Boss Nass':['A',83.3],'Darth Malgus':['A',91.3],'Cobb Vanth':['A',80.7],'Darth Traya':['A',85.6],
+ "Bo-Katan (Mand'alor)":['B',80.3],'Maz Kanata':['B',87.3],'Ugnaught':['B',84.5],'Jabba the Hutt':['B',80.4],'Boba Fett, Scion of Jango':['B',69.2],
+ 'Jedi Master Luke Skywalker':['B',81.5],'Hondo Ohnaka':['B',81.9],'Cassian Andor (Undercover)':['B',77.2],'Ezra Bridger':['B',80.2],'Rotta the Hutt':['B',76.0],
+ 'Rey':['B',63.1],'Savage Opress':['B',72.1],'Third Sister':['B',78.5],'General Skywalker':['B',84.5],'Darth Maul':['B',72.5],'Great Mothers':['B',66.7],
+ 'Mon Mothma':['B',73.2],'Dark Trooper Moff Gideon':['B',90.0],'Emperor Palpatine':['B',72.1],'Jedi Master Mace Windu':['B',79.8],'Jedi Knight Luke Skywalker':['B',70.7],
+ 'Tusken Chieftain':['B',65.0],'Hera Syndulla':['B',76.4],'Captain Carson Teva':['B',69.5],'Darth Revan':['B',70.3],'50R-T':['B',65.1],'Saw Gerrera':['B',63.9],
+ 'Maul (Hate-Fueled)':['B',83.9],'Taron Malicos':['B',83.3],'General Veers':['B',79.3],'Finn':['B',62.4],
+ 'Commander Luke Skywalker':['C',77.3],'Padmé Amidala':['C',68.3],'Qui-Gon Jinn':['C',66.9],'Rey (Dark Side Vision)':['C',74.9],'Jedi Knight Revan':['C',35.7],'Tarfful':['C',66.3]
+};
+
+/* Mapa de TW como lo divide tu gremio: el FRENTE está a la DERECHA.
+   col 1 = A (frente) · 2 = B · 3 = C · 4 = D (fondo) · fila = posición de arriba hacia abajo en esa columna
+   tipo: pj (personajes) o nave. Si tu gremio lo divide distinto, cámbialo aquí. */
+window.TW_MAPA = [
+  { id:'A1', col:1, fila:1, filas:2, tipo:'pj' }, { id:'A2', col:1, fila:2, filas:2, tipo:'pj' },
+  { id:'B1', col:2, fila:1, filas:2, tipo:'pj' }, { id:'B2', col:2, fila:2, filas:2, tipo:'pj' },
+  { id:'C1', col:3, fila:1, filas:3, tipo:'nave' }, { id:'C2', col:3, fila:2, filas:3, tipo:'pj' }, { id:'C3', col:3, fila:3, filas:3, tipo:'pj' },
+  { id:'D1', col:4, fila:1, filas:3, tipo:'nave' }, { id:'D2', col:4, fila:2, filas:3, tipo:'pj' }, { id:'D3', col:4, fila:3, filas:3, tipo:'pj' }
 ];
