@@ -424,7 +424,8 @@ function render(){
     return;
   }
   const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,tw:vTW,omi:vOmi,zeta:vZeta,gt:vGT,conq:vCQ,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
-  app.innerHTML = warn + f(list);
+  try{ app.innerHTML = warn + f(list); }
+  catch(e){ console.error(e); app.innerHTML = warn + `<div class="err-box">Esta pestaña tuvo un error: ${esc(e.message||e)}. Pulsa ⟳ Actualizar; si sigue, mándame una captura de este mensaje.</div>`; return; }
   bind();
 }
 
@@ -1094,6 +1095,7 @@ function omiStatus(u, tier){
   return {cls:'gris', txt:`${lvl} · sin Ω`};
 }
 function vOmi(list){
+  if(!window.OMICRONS) return `<div class="err-box">No se encontró el archivo <b>omicrons.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página.</div>`;
   const O=S.omi, rows=(window.OMICRONS||{})[O.mode]||[];
   const single = S.sel!=='all' && list.length===1 ? list[0] : null;
   const q=O.q.trim().toLowerCase();
@@ -1130,12 +1132,12 @@ function vOmi(list){
   };
   const modeName=OMI_MODES.find(m=>m[0]===O.mode)[1];
   return `<div class="panel"><h2>Ω Omicrons <span class="small muted">· ${rows.length} en ${esc(modeName)}</span></h2>
-    <div class="row" style="margin-bottom:12px">${OMI_MODES.map(([k,t])=>`<button class="omi-mode ${O.mode===k?'on':''}" data-m="${k}">${t}<small>${(OMICRONS[k]||[]).length}</small></button>`).join('')}</div>
+    <div class="row" style="margin-bottom:12px">${OMI_MODES.map(([k,t])=>`<button class="omi-mode ${O.mode===k?'on':''}" data-m="${k}">${t}<small>${((window.OMICRONS||{})[k]||[]).length}</small></button>`).join('')}</div>
     <div class="ctrl"><input type="text" id="omiQ" placeholder="Buscar personaje o habilidad…" value="${esc(O.q)}" style="width:240px">
       ${list.length?`<label class="chk"><input type="checkbox" id="omiOwn" ${O.own?'checked':''}> Solo los que tengo</label>
       <label class="chk"><input type="checkbox" id="omiMiss" ${O.missing?'checked':''}> Solo los que tengo sin omicron</label>`:''}
       <button class="btn ghost" id="omiAll">Abrir todo</button><button class="btn ghost" id="omiNone">Cerrar todo</button></div>
-    <p class="small muted">Ordenados del mejor al peor. ${list.length?`A la derecha: tu nivel y si ese personaje ya tiene omicron (Ω×n = cuántos omicrons tiene puestos; swgoh.gg no dice cuáles). <span class="chip casi">sin Ω</span> en naranja = imprescindible o fuerte y aún sin omicron.`:''} Fuente: ${esc(OMICRONS_FUENTE)}.</p></div>
+    <p class="small muted">Ordenados del mejor al peor. ${list.length?`A la derecha: tu nivel y si ese personaje ya tiene omicron (Ω×n = cuántos omicrons tiene puestos; swgoh.gg no dice cuáles). <span class="chip casi">sin Ω</span> en naranja = imprescindible o fuerte y aún sin omicron.`:''} Fuente: ${esc(window.OMICRONS_FUENTE||"")}.</p></div>
   ${prio}
   <div class="panel">${tierOrder.map(t=>`<details class="omi-tier" ${O.open[t]?'open':''} data-t="${t}"><summary><span style="color:${OMI_TIERS[t].c}">${OMI_TIERS[t].t}</span><span class="muted small"> ${byTier[t].length} · ${OMI_TIERS[t].en}</span><span class="omi-arrow">›</span></summary>
     <div class="omi-list">${byTier[t].map(row).join('')}</div></details>`).join('') || '<p class="muted">Nada con esos filtros.</p>'}</div>`;
@@ -1170,6 +1172,7 @@ const rank = t => t ? GT_ORDER.indexOf(t) : 9;
 
 /* ---------- 🏆 Equipos tier ---------- */
 function vGT(list){
+  if(!window.GUIA_EQUIPOS) return `<div class="err-box">No se encontró el archivo <b>guia.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página.</div>`;
   const G=S.gt, single = S.sel!=='all' && list.length===1 ? list[0] : null;
   let teams = (window.GUIA_EQUIPOS||[]).filter(t=>t.m===G.mode && (G.tier==='*'||t.t===G.tier));
   const evals = new Map(teams.map(t=>[t, list.map(a=>squadEval(t.u,a,G.minR))]));
@@ -1204,7 +1207,7 @@ function vGT(list){
       ${body}${omi}</div>`;
   };
   return `<div class="panel"><h2>🏆 Equipos de Gran Arena por tier</h2>
-    <div class="row" style="margin-bottom:10px">${['5v5','3v3'].map(m=>`<button class="omi-mode gt-mode ${G.mode===m?'on':''}" data-m="${m}">${m}<small>${(GUIA_EQUIPOS||[]).filter(t=>t.m===m).length}</small></button>`).join('')}</div>
+    <div class="row" style="margin-bottom:10px">${['5v5','3v3'].map(m=>`<button class="omi-mode gt-mode ${G.mode===m?'on':''}" data-m="${m}">${m}<small>${(window.GUIA_EQUIPOS||[]).filter(t=>t.m===m).length}</small></button>`).join('')}</div>
     <div class="ctrl">
       <select id="gtTier"><option value="*">Todos los tiers</option>${GT_ORDER.map(t=>`<option value="${t}" ${G.tier===t?'selected':''}>${GT_TIERS[t].t}</option>`).join('')}</select>
       <select id="gtSort">${[['tier','Ordenar: tier'],['off','Mejor en ataque'],['def','Mejor en defensa'],['ready','Los que tengo listos primero'],['az','A → Z']].map(([k,t])=>`<option value="${k}" ${G.sort===k?'selected':''}>${t}</option>`).join('')}</select>
@@ -1218,6 +1221,7 @@ function vGT(list){
 
 /* ---------- ζ Zetas ---------- */
 function vZeta(list){
+  if(!window.ZETAS) return `<div class="err-box">No se encontró el archivo <b>guia.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página.</div>`;
   const O=S.zt, rows=window.ZETAS||[];
   const single = S.sel!=='all' && list.length===1 ? list[0] : null;
   const q=O.q.trim().toLowerCase();
@@ -1268,6 +1272,7 @@ function cqFeatState(f, a, minR){
   return {estado:best.estado, evs, best};
 }
 function vCQ(list){
+  if(!window.CONQUISTA) return `<div class="err-box">No se encontró el archivo <b>guia.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página.</div>`;
   const C=S.cq, I=window.CONQUISTA_INFO||{}, F=window.CONQUISTA||[];
   const single = S.sel!=='all' && list.length===1 ? list[0] : null;
   const dias = Math.ceil((new Date(I.fin+'T00:00:00')-new Date())/864e5);
