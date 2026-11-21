@@ -153,6 +153,8 @@ tr.rv-row td{background:rgba(226,72,90,.08)}
 .cq-mk{position:absolute;top:12px;transform:translateX(-50%);font:700 10px Rajdhani;color:var(--tx3)}
 .cq-mk.on{color:var(--gold)}
 @media (max-width:640px){.cq-grid{grid-template-columns:1fr}}
+.mg-t td{vertical-align:middle}
+.mg-t .ports{flex-wrap:nowrap}
 footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 @media (max-width:640px){.squads{grid-template-columns:1fr}.accrow .an{width:84px}main{padding:10px}}
 </style>
@@ -172,6 +174,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 <script src="equipos.js"></script>
 <script src="omicrons.js"></script>
 <script src="guia.js"></script>
+<script src="meta.js"></script>
 <script>
 /* ======================= ESTADO ======================= */
 const S = {
@@ -183,7 +186,7 @@ const S = {
   plan:{mode:'gac', ndef:5, casi:false},
   rival:{code:'', st:'', err:'', p:null, units:new Map()}
 };
-const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['omi','Ω Omicrons'],['zeta','ζ Zetas'],['gt','🏆 Tier equipos'],['conq','🗺 Conquista'],['rival','🔍 Revisar rival'],['tw','⚔ Gremios / TW'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
+const SECS = [['resumen','Resumen'],['roster','Roster por facción'],['equipos','Equipos'],['counters','Counters GAC'],['omi','Ω Omicrons'],['zeta','ζ Zetas'],['meta','📈 Meta GAC'],['gt','🏆 Tier equipos'],['conq','🗺 Conquista'],['rival','🔍 Revisar rival'],['tw','⚔ Gremios / TW'],['plan','Plan GAC / TW'],['rote','ROTE'],['naves','Naves'],['diag','Diagnóstico']];
 const META_TAGS = new Set(['Leader','Fleet Commander','Order 66 Raid','Attacker','Support','Tank','Healer']);
 
 /* ======================= DATOS ======================= */
@@ -416,14 +419,14 @@ function render(){
   const app=document.getElementById('app');
   const list = accs();
   const warn = !Object.keys(S.chars).length ? `<div class="err-box" style="margin-bottom:12px">Faltan fotos y facciones: swgoh.gg no deja que Netlify lea su lista de personajes${S.dbErr?' ('+esc(S.dbErr)+')':''}. Se arregla una sola vez subiendo esa lista al repo: mira los pasos en <a href="#" id="goDiag" style="color:#fff;font-weight:600">Diagnóstico</a>.</div>` : '';
-  if(!list.length && !['diag','rival','tw','omi','zeta','gt','conq'].includes(S.sec)){
+  if(!list.length && !['diag','rival','tw','omi','zeta','gt','conq','meta'].includes(S.sec)){
     const a = S.sel==='all'?null:S.acc[S.sel];
     app.innerHTML = warn + (a && a.st==='err'
       ? `<div class="err-box">No se pudo cargar <b>${esc(a.cfg.nombre)}</b> (${a.cfg.codigo}): ${esc(a.err)}.</div>`
       : `<div class="panel">Cargando datos de swgoh.gg…</div>`);
     return;
   }
-  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,tw:vTW,omi:vOmi,zeta:vZeta,gt:vGT,conq:vCQ,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
+  const f = {resumen:vResumen,roster:vRoster,equipos:vEquipos,counters:vCounters,rival:vRival,tw:vTW,omi:vOmi,zeta:vZeta,gt:vGT,meta:vMeta,conq:vCQ,plan:vPlan,rote:vRote,naves:vNaves,diag:vDiag}[S.sec];
   try{ app.innerHTML = warn + f(list); }
   catch(e){ console.error(e); app.innerHTML = warn + `<div class="err-box">Esta pestaña tuvo un error: ${esc(e.message||e)}. Pulsa ⟳ Actualizar; si sigue, mándame una captura de este mensaje.</div>`; return; }
   bind();
@@ -1322,6 +1325,80 @@ function vCQ(list){
   return head + (body||'<div class="panel muted">Ningún feat con esos filtros.</div>') + `<p class="small muted">Fuente: ${esc(GUIA_FUENTE)}. Los requisitos están traducidos; el texto original va debajo en gris.</p>`;
 }
 
+/* ======================= 📈 META GAC (swgoh.gg squads / leaders) ======================= */
+S.mg = Object.assign({kind:'squads', season:'84', persp:'defense', minR:7, ready:false, sort:'seen'}, lsGet('swgoh_mg_opts')||{});
+const mgSave=()=>lsSet('swgoh_mg_opts',{kind:S.mg.kind,season:S.mg.season,persp:S.mg.persp,minR:S.mg.minR,ready:S.mg.ready,sort:S.mg.sort});
+const mgFmt=n=>n>=1e6?(n/1e6).toFixed(2)+' M':n>=1e3?(n/1e3).toFixed(1).replace(/\.0$/,'')+'K':String(n);
+function vMeta(list){
+  if(!window.META_GAC) return `<div class="err-box">No se encontró el archivo <b>meta.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página.</div>`;
+  const M=S.mg, def=M.persp==='defense', single = S.sel!=='all' && list.length===1 ? list[0] : null;
+  const temp=(META_TEMPORADAS||[]).find(t=>t.id===M.season)||{};
+  const squads=(META_GAC[`squads_${M.season}_${M.persp}`]||[]).map((r,i)=>({rank:i+1,ids:r[0],seen:r[1],pct:r[2],ban:r[3]}));
+  const leaders=(META_GAC[`leaders_${M.season}_${M.persp}`]||[]).map((r,i)=>({rank:i+1,id:r[0][0],seen:r[1],pct:r[2],ban:r[3]}));
+  const pctLbl=def?'Aguanta':'Gana', pctCls=p=>def?(p>=25?'var(--ok)':p>=15?'#fff':'var(--tx3)'):(p>=88?'var(--ok)':p>=80?'#fff':'var(--tx3)');
+  const evalS = (s,a)=>squadEval(s.ids,a,M.minR);
+  const sortFn = {seen:(a,b)=>b.seen-a.seen, pct:(a,b)=>b.pct-a.pct||b.seen-a.seen}[M.sort];
+  const controls = `<div class="row" style="margin-bottom:10px">
+      ${[['squads','Mejores equipos'],['leaders','Mejores líderes']].map(([k,t])=>`<button class="omi-mode mg-kind ${M.kind===k?'on':''}" data-v="${k}">${t}</button>`).join('')}
+      <span style="width:12px"></span>
+      ${(META_TEMPORADAS||[]).map(t=>`<button class="omi-mode mg-season ${M.season===t.id?'on':''}" data-v="${t.id}">${t.nombre}</button>`).join('')}
+      <span style="width:12px"></span>
+      ${[['defense','🛡 Defensa'],['attack','⚔ Ataque']].map(([k,t])=>`<button class="omi-mode mg-persp ${M.persp===k?'on':''}" data-v="${k}">${t}</button>`).join('')}</div>
+    <div class="ctrl"><select id="mgSort"><option value="seen" ${M.sort==='seen'?'selected':''}>Ordenar: más usados</option><option value="pct" ${M.sort==='pct'?'selected':''}>Ordenar: ${def?'los que más aguantan':'los que más ganan'}</option></select>
+      <span class="muted">Reliquia mínima:</span><select id="mgMin">${[5,6,7,8,9].map(r=>`<option value="${r}" ${M.minR===r?'selected':''}>R${r}</option>`).join('')}</select>
+      ${list.length?`<label class="chk"><input type="checkbox" id="mgReady" ${M.ready?'checked':''}> Solo lo que puedo armar</label>`:''}</div>
+    <p class="small muted">Datos de ${esc(temp.batallas||'')} batallas de GAC (${esc(META_FUENTE)}). <b>Visto</b> = cuántas veces se usó. <b>${pctLbl}</b> = ${def?'% de veces que la defensa aguantó':'% de victorias atacando'}. <b>Banners</b> = media que ${def?'sacó el atacante (menos es mejor para ti)':'sacas al atacar (más es mejor)'}.</p>`;
+
+  // panel personal
+  let mine='';
+  if(single){
+    const ok=squads.filter(s=>evalS(s,single).estado==='listo').sort((a,b)=>b.pct-a.pct||b.seen-a.seen).slice(0,8);
+    const casi=squads.filter(s=>evalS(s,single).estado==='casi').sort((a,b)=>b.pct-a.pct).slice(0,6);
+    mine=`<div class="panel"><h3>⭐ ${def?'Tus mejores defensas':'Tus mejores ataques'} con el meta actual · ${esc(single.cfg.nombre)}</h3>
+      <p class="small muted">Equipos del meta que ya puedes armar completos a R${M.minR}+, ordenados por ${def?'lo que aguantan':'su % de victorias'}.</p>
+      ${ok.length?ok.map(s=>{const e=evalS(s,single);return `<div class="ctr"><div class="ports">${squadPorts(e,single,M.minR)}</div><div class="meta"><b class="pct" style="color:${pctCls(s.pct)}">${s.pct}%</b> <span class="small muted">${pctLbl.toLowerCase()} · visto ${mgFmt(s.seen)}</span></div></div>`}).join(''):'<p class="small muted">Ninguno completo a esa reliquia todavía.</p>'}
+      ${casi.length?`<h3 style="margin-top:12px">🔧 Casi listos (te falta subir reliquia)</h3>${casi.map(s=>{const e=evalS(s,single);return `<div class="ctr"><div class="ports">${squadPorts(e,single,M.minR)}</div><div class="meta"><b class="pct">${s.pct}%</b><div class="small muted">Subir: ${e.low.map(r=>esc(lab(r.id))+' (R'+r.u.relic+')').join(', ')}</div></div></div>`}).join('')}`:''}</div>`;
+  } else if(list.length){
+    mine=`<div class="panel"><h3>Cuántos equipos del meta puede armar cada cuenta (a R${M.minR}+)</h3><div class="tbl-wrap"><table><thead><tr><th>Cuenta</th><th class="n">Equipos listos</th><th class="n">Casi</th><th>Su mejor ${def?'defensa':'ataque'}</th></tr></thead><tbody>
+      ${list.map(a=>{const ev=squads.map(s=>({s,e:evalS(s,a)})); const ok=ev.filter(x=>x.e.estado==='listo').sort((x,y)=>y.s.pct-x.s.pct); return `<tr><td><b>${esc(a.cfg.nombre)}</b></td><td class="n">${ok.length}/${squads.length}</td><td class="n">${ev.filter(x=>x.e.estado==='casi').length}</td><td>${ok[0]?`<div class="row">${squadPorts(ok[0].e,a,M.minR)}<b class="pct">${ok[0].s.pct}%</b></div>`:'<span class="muted small">—</span>'}</td></tr>`}).join('')}
+      </tbody></table></div></div>`;
+  }
+
+  let body='';
+  if(M.kind==='squads'){
+    let rows=squads.slice();
+    if(M.ready && list.length) rows=rows.filter(s=>list.some(a=>evalS(s,a).estado==='listo'));
+    rows.sort(sortFn);
+    body=`<div class="panel"><h2>${def?'🛡 Defensas':'⚔ Ataques'} más usados · ${esc(temp.nombre||'')}</h2>
+      <div class="tbl-wrap"><table class="mg-t"><thead><tr><th class="n">#</th><th>Equipo</th><th class="n">Visto</th><th class="n">${pctLbl}</th><th class="n">Banners</th>${list.length?`<th>${single?'Tu cuenta':'Tus cuentas'}</th>`:''}</tr></thead><tbody>
+      ${rows.map(s=>{const e0=single?evalS(s,single):squadEval(s.ids,null,M.minR);
+        let st='';
+        if(single){ st=`<span class="chip ${e0.estado}">${chipTxt[e0.estado]}</span>${e0.missing.length?`<div class="small muted">Falta: ${e0.missing.map(r=>esc(r.id?lab(r.id):r.n)).join(', ')}</div>`:e0.low.length?`<div class="small muted">Bajo R${M.minR}: ${e0.low.map(r=>esc(lab(r.id))).join(', ')}</div>`:''}`; }
+        else if(list.length){ st=`<div class="acc">${list.map(a=>{const e=evalS(s,a);return `<span class="mini ${e.estado}" title="${esc(a.cfg.nombre)}: ${chipTxt[e.estado]}">${esc(a.cfg.nombre)}</span>`}).join('')}</div>`; }
+        return `<tr><td class="n muted">${s.rank}</td><td><div class="ports">${squadPorts(e0,single,M.minR)}</div><div class="small muted">${s.ids.map(x=>esc(lab(omiId(x)||x))).join(' · ')}</div></td><td class="n">${mgFmt(s.seen)}</td><td class="n"><b class="pct" style="color:${pctCls(s.pct)}">${s.pct}%</b></td><td class="n">${s.ban}</td>${list.length?`<td>${st}</td>`:''}</tr>`}).join('')||`<tr><td colspan="6" class="muted">Nada con esos filtros.</td></tr>`}
+      </tbody></table></div></div>`;
+  } else {
+    let rows=leaders.slice();
+    const leadSquads = id => squads.filter(s=>omiId(s.ids[0])===id);
+    const bestFor = (id,a)=>{ const ss=leadSquads(id).map(s=>({s,e:evalS(s,a)})); const ord={listo:0,casi:1,falta:2}; return ss.sort((x,y)=>ord[x.e.estado]-ord[y.e.estado]||y.s.seen-x.s.seen)[0]||null; };
+    if(M.ready && list.length) rows=rows.filter(l=>list.some(a=>{const u=a.units.get(l.id); return u && u.relic>=M.minR;}));
+    rows.sort(sortFn);
+    body=`<div class="panel"><h2>👑 Líderes ${def?'en defensa':'en ataque'} · ${esc(temp.nombre||'')}</h2>
+      <p class="small muted">${single?'A la derecha: el nivel de tu líder y el equipo más usado con ese líder que puedes armar.':'A la derecha: el nivel del líder en cada cuenta.'}</p>
+      <div class="tbl-wrap"><table class="mg-t"><thead><tr><th class="n">#</th><th>Líder</th><th class="n">Visto</th><th class="n">${pctLbl}</th><th class="n">Banners</th>${list.length?`<th>${single?'Tu líder y tu mejor equipo':'Tus cuentas'}</th>`:''}</tr></thead><tbody>
+      ${rows.map(l=>{
+        let st='';
+        if(single){ const u=single.units.get(l.id); const b=bestFor(l.id,single);
+          st = !u ? '<span class="chip falta">No lo tienes</span>' : `<span class="chip ${u.relic>=M.minR?'listo':'casi'}">${u.relic>=0?'R'+u.relic:'G'+u.gear}</span>`;
+          if(u && b) st+=`<div class="row" style="margin-top:6px"><span class="mini ${b.e.estado}">${chipTxt[b.e.estado]}</span>${squadPorts(b.e,single,M.minR)}</div>`;
+          else if(u) st+='<div class="small muted">Sin equipo de este líder en la lista del meta.</div>';
+        } else if(list.length){ st=`<div class="acc">${list.map(a=>{const u=a.units.get(l.id); const cls=!u?'':u.relic>=M.minR?'listo':'casi'; return `<span class="mini ${cls}" title="${esc(a.cfg.nombre)}">${esc(a.cfg.nombre)}${u?' '+(u.relic>=0?'R'+u.relic:'G'+u.gear):''}</span>`}).join('')}</div>`; }
+        return `<tr><td class="n muted">${l.rank}</td><td><div class="row">${portrait(l.id,single?single.units.get(l.id):null,{sm:true,free:!single,gl:isGL(l.id)})}<b>${esc(lab(l.id))}</b>${lab(l.id)!==uname(l.id)?`<span class="small muted">${esc(uname(l.id))}</span>`:''}</div></td><td class="n">${mgFmt(l.seen)}</td><td class="n"><b class="pct" style="color:${pctCls(l.pct)}">${l.pct}%</b></td><td class="n">${l.ban}</td>${list.length?`<td>${st}</td>`:''}</tr>`}).join('')||`<tr><td colspan="6" class="muted">Nada con esos filtros.</td></tr>`}
+      </tbody></table></div></div>`;
+  }
+  return `<div class="panel"><h2>📈 Meta de Gran Arena</h2>${controls}</div>${mine}${body}`;
+}
+
 /* ======================= EVENTOS ======================= */
 function bind(){
   const $=id=>document.getElementById(id), on=(id,ev,f)=>{const e=$(id);if(e)e.addEventListener(ev,f)};
@@ -1391,6 +1468,12 @@ function bind(){
   on('cqReady','change',e=>{S.cq.ready=e.target.checked;cqSave();render()});
   document.querySelectorAll('.cq-chk').forEach(b=>b.onclick=()=>{const a=S.acc[S.sel]; if(!a) return; const k='swgoh_cq_done_'+a.cfg.codigo, s=new Set(lsGet(k)||[]), i=+b.dataset.i; s.has(i)?s.delete(i):s.add(i); lsSet(k,[...s]); render();});
   document.querySelectorAll('.cq-bat').forEach(inp=>inp.onchange=()=>{lsSet('swgoh_cq_bat_'+inp.dataset.c,Math.max(0,+inp.value||0));render()});
+  document.querySelectorAll('.mg-kind').forEach(b=>b.onclick=()=>{S.mg.kind=b.dataset.v;mgSave();render()});
+  document.querySelectorAll('.mg-season').forEach(b=>b.onclick=()=>{S.mg.season=b.dataset.v;mgSave();render()});
+  document.querySelectorAll('.mg-persp').forEach(b=>b.onclick=()=>{S.mg.persp=b.dataset.v;mgSave();render()});
+  on('mgSort','change',e=>{S.mg.sort=e.target.value;mgSave();render()});
+  on('mgMin','change',e=>{S.mg.minR=+e.target.value;mgSave();render()});
+  on('mgReady','change',e=>{S.mg.ready=e.target.checked;mgSave();render()});
   on('rvCode','keydown',e=>{if(e.key==='Enter')loadRival(e.target.value)});
   document.querySelectorAll('.rv-load').forEach(b=>b.onclick=()=>loadRival(b.dataset.c));
   document.querySelectorAll('.rv-del').forEach(b=>b.onclick=()=>{lsSet('swgoh_rivales',rivals().filter(r=>r.codigo!==b.dataset.c));render()});
