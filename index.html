@@ -155,6 +155,7 @@ tr.rv-row td{background:rgba(226,72,90,.08)}
 @media (max-width:640px){.cq-grid{grid-template-columns:1fr}}
 .mg-t td{vertical-align:middle}
 .mg-t .ports{flex-wrap:nowrap}
+.rt-m{border:1px solid var(--line,#2a3140);border-radius:10px;padding:8px 10px;margin:8px 0}.rt-mh{margin-bottom:4px}.rt-nota{color:#fbbf24;margin:2px 0 6px}.rt-asg{outline:1px solid var(--ok);border-radius:8px}.rt-pl summary span:first-child{color:#fff}
 footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 @media (max-width:640px){.squads{grid-template-columns:1fr}.accrow .an{width:84px}main{padding:10px}}
 </style>
@@ -175,6 +176,7 @@ footer{color:var(--tx3);font-size:12px;text-align:center;padding:20px}
 <script src="omicrons.js"></script>
 <script src="guia.js"></script>
 <script src="meta.js"></script>
+<script src="rote.js"></script>
 <script>
 /* ======================= ESTADO ======================= */
 const S = {
@@ -657,7 +659,7 @@ function vRote(list){
   <p class="small muted">Planetas y puntos para 3★ según <a href="https://genskaar.github.io/tb_empire/html/main.html" target="_blank" rel="noopener">genskaar</a> (ahí están las misiones y equipos por planeta). En cada cuenta: personajes aptos para las misiones de combate de la fase (reliquia mínima y lado).</p>
   <div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Planeta</th><th>Lado</th><th class="n">Puntos 3★</th>${list.map(a=>`<th class="n">${esc(a.cfg.nombre)}</th>`).join('')}</tr></thead><tbody>
   ${ROTE.map(f=>f.planetas.map((p,k)=>`<tr>${k===0?`<td rowspan="${f.planetas.length}"><b class="rj" style="font-size:18px">F${f.fase}</b><div class="small muted">R${f.relic}+</div></td>`:''}<td>${esc(p.n)}${p.bonus?' <span class="chip casi">bonus</span>':''}</td><td>${ladoTxt[p.lado]}</td><td class="n">${fmt(p.estrellas3)}</td>${list.map(a=>{const r=apt(a,f.relic,p.lado);return `<td class="n"><b>${r.n}</b><div class="small muted">${fmtM(r.gp)}</div></td>`}).join('')}</tr>`).join('')).join('')}
-  </tbody></table></div></div>`;
+  </tbody></table></div></div>` + vRotePlan(list);
 }
 function vNaves(list){
   return list.map(a=>{
@@ -1399,6 +1401,106 @@ function vMeta(list){
   return `<div class="panel"><h2>📈 Meta de Gran Arena</h2>${controls}</div>${mine}${body}`;
 }
 
+/* ======================= ROTE · plan por fase (equipos + pelotones) ======================= */
+S.rt = Object.assign({fase:1}, lsGet('swgoh_rt_opts')||{});
+const rtSave=()=>lsSet('swgoh_rt_opts',{fase:S.rt.fase});
+let _rtShip=null,_rtShipKey='';
+function rtId(n){
+  const id=omiId(n); if(id) return id;
+  const k=Object.keys(S.ships).length;
+  if(!_rtShip||_rtShipKey!==k){ _rtShip={}; Object.entries(S.ships).forEach(([id,c])=>{const s=slugify(c.name); if(!_rtShip[s])_rtShip[s]=id; if(c.slug&&!_rtShip[c.slug])_rtShip[c.slug]=id;}); _rtShipKey=k; }
+  const s=slugify(n); return _rtShip[s]||_rtShip[s.replace(/-starfighter$/,'')]||null;
+}
+const rtIsShip=(id,u)=>!!(id&&S.ships[id])||u?.ct===2;
+function rtEval(names,a,minR){
+  const res=names.map(n=>{const id=rtId(n); const u=id&&a?a.units.get(id):null; return {n,id,u,ship:rtIsShip(id,u)}});
+  const missing=res.filter(r=>!r.u), low=res.filter(r=>r.u&&(r.ship?r.u.stars<7:r.u.relic<minR));
+  return {res,missing,low,estado:!a?'':missing.length?'falta':low.length?'casi':'listo'};
+}
+const rtPorts=(ev,a,minR)=>ev.res.map(r=>r.id?portrait(r.id,a?r.u:null,{sm:true,free:!a,min:r.ship?null:minR}):`<div class="p sm nt ${a?'off':''}" title="${esc(r.n)}"><div class="img"><span class="ini">${esc(r.n.split(/\s+/).map(w=>w[0]).join('').slice(0,3))}</span></div><div class="nm">${esc(r.n)}</div></div>`).join('');
+const rtLvl=(r,minR)=>r.ship?`${r.u.stars}★→7★`:`${r.u.relic>=0?'R'+r.u.relic:'G'+r.u.gear}→R${minR}`;
+const rtName=r=>r.id?lab(r.id):r.n;
+/* planetas de la fase (ROTE de equipos.js + Mandalore, bonus de la fase 4) */
+function rtPlanets(f){
+  const ps=f.planetas.map(p=>({n:p.n.replace(/ \(bonus\)/,''),lado:p.lado,bonus:!!p.bonus}));
+  if(f.fase===4 && !ps.some(p=>p.n==='Mandalore')) ps.push({n:'Mandalore',lado:'MX',bonus:true});
+  return ps.map(p=>({...p, ms:(ROTE_MISIONES[p.n]||[]).map((m,i)=>({...m,i,pl:p.n,flota:m.t==='Flota'})), pel:ROTE_PELOTONES[p.n]||[]}));
+}
+/* reparte equipos sin repetir personajes (en BT cada unidad se usa una vez por fase) */
+function rtPlan(planets,a,minR){
+  const used=new Set(), asg=new Map();
+  const ms=planets.flatMap(p=>p.ms.map(m=>({m,p})));
+  const opts=new Map(ms.map(x=>[x.m,x.m.eq.map(([n,t])=>({n,t,e:rtEval(t,a,minR)}))]));
+  const free=o=>o.e.estado==='listo'&&o.e.res.every(r=>!used.has(r.id));
+  for(const bonus of [false,true]){
+    let pend=ms.filter(x=>x.p.bonus===bonus);
+    while(pend.length){
+      pend.sort((x,y)=>opts.get(x.m).filter(free).length-opts.get(y.m).filter(free).length);
+      const x=pend.shift(), o=opts.get(x.m).find(free);
+      if(o){ o.e.res.forEach(r=>used.add(r.id)); asg.set(x.m,o); }
+    }
+  }
+  return {used,asg,opts};
+}
+function rtPelotones(p,a,minR,used){
+  const rows=p.pel.map(([n,c])=>{const id=rtId(n); const u=id&&a.units.get(id); return {n,c,id,u,ship:rtIsShip(id,u)}}).filter(r=>r.u);
+  const ok=r=>r.ship?r.u.stars>=7:r.u.relic>=minR;
+  const pon=rows.filter(r=>ok(r)&&!used.has(r.id));
+  const reserv=rows.filter(r=>ok(r)&&used.has(r.id));
+  const cerca=rows.filter(r=>!ok(r)&&!r.ship&&(r.u.relic>=minR-2||(r.u.relic<0&&r.u.gear>=12&&minR<=6))).sort((x,y)=>y.c-x.c||y.u.relic-x.u.relic);
+  return {pon,reserv,cerca};
+}
+function vRotePlan(list){
+  if(!window.ROTE_MISIONES) return `<div class="err-box">No se encontró el archivo <b>rote.js</b>. Súbelo a la raíz del repo (junto a index.html) y recarga la página para ver los equipos y pelotones por fase.</div>`;
+  const R=S.rt, f=ROTE.find(x=>x.fase===R.fase)||ROTE[0], minR=f.relic, planets=rtPlanets(f);
+  const single = S.sel!=='all' && list.length===1 ? list[0] : null;
+  const ladoTxt={DS:'<span class="ds-t">Oscuro</span>',LS:'<span class="ls-t">Luminoso</span>',MX:'<span class="mx-t">Mixto</span>'};
+  const head=`<div class="panel"><h2>🗺 Plan por fase: equipos y pelotones</h2>
+    <div class="row" style="margin-bottom:10px">${ROTE.map(x=>`<button class="omi-mode rt-fase ${x.fase===f.fase?'on':''}" data-v="${x.fase}">Fase ${x.fase}<small>R${x.relic}+</small></button>`).join('')}</div>
+    <p class="small muted">Equipos recomendados por la guía de ROTE de <a href="https://genskaar.github.io/tb_empire/html/main.html" target="_blank" rel="noopener">genskaar</a> (la referencia de la comunidad), en orden de preferencia, cruzados con tu roster a la reliquia mínima de la fase (<b>R${minR}+</b>; naves a 7★). En una fase cada personaje se usa una sola vez entre todos los planetas, por eso el <b>plan sugerido</b> reparte tus equipos sin repetir a nadie, y lo que sobra va a <b>pelotones</b>. Los inquisidores llevan también la variante con <b>Marrok</b> (su omicron de BT es imprescindible).</p></div>`;
+  if(!list.length) return head;
+
+  if(single){
+    const a=single, P=rtPlan(planets,a,minR);
+    const resumen=planets.map(p=>p.ms.map(m=>{const o=P.asg.get(m); const best=!o&&P.opts.get(m).slice().sort((x,y)=>({listo:0,casi:1,falta:2})[x.e.estado]-({listo:0,casi:1,falta:2})[y.e.estado]||x.e.low.length+x.e.missing.length-y.e.low.length-y.e.missing.length)[0];
+      const cell = o ? `<div class="row">${rtPorts(o.e,a,minR)}</div><div class="small muted">${esc(o.n)}</div>`
+        : best ? `<span class="chip ${best.e.estado==='listo'?'casi':best.e.estado}">${best.e.estado==='listo'?'Personajes ya usados':best.e.estado==='casi'?'Te falta subir':'No disponible'}</span> <span class="small muted">${esc(best.n)}</span>${best.e.low.length?`<div class="small">Subir: ${best.e.low.map(r=>esc(rtName(r))+' ('+rtLvl(r,minR)+')').join(', ')}</div>`:''}${best.e.missing.length&&best.e.missing.length<=2?`<div class="small muted">Te falta: ${best.e.missing.map(r=>esc(rtName(r))).join(', ')}</div>`:''}` : !m.eq.length ? '<span class="muted small">Misión nueva: la guía todavía no tiene equipo recomendado.</span>' : '<span class="muted small">—</span>';
+      return `<tr><td>${esc(p.n)}${p.bonus?' <span class="chip casi">bonus</span>':''}<div class="small">${ladoTxt[p.lado]}</div></td><td><b>${esc(m.t)}</b><div class="small muted">${esc(m.req)}</div></td><td>${o?'<span class="chip listo">Listo</span>':''}${cell}</td></tr>`}).join('')).join('');
+    const nOk=[...P.asg.values()].length, nTot=planets.reduce((s,p)=>s+p.ms.length,0);
+    const plan=`<div class="panel"><h3>⭐ Plan sugerido · ${esc(a.cfg.nombre)} · Fase ${f.fase} <span class="small muted">· ${nOk} de ${nTot} misiones con equipo listo</span></h3>
+      <div class="tbl-wrap"><table><thead><tr><th>Planeta</th><th>Misión</th><th>Tu equipo</th></tr></thead><tbody>${resumen}</tbody></table></div></div>`;
+    const det=planets.map(p=>{
+      const pel=rtPelotones(p,a,minR,P.used);
+      const ms=p.ms.map(m=>{const ord={listo:0,casi:1,falta:2}; const os=P.opts.get(m).slice().sort((x,y)=>ord[x.e.estado]-ord[y.e.estado]); const asg=P.asg.get(m);
+        return `<div class="rt-m"><div class="rt-mh"><b>${esc(m.t)}</b> <span class="small muted">${esc(m.req)}</span></div>${m.nota?`<div class="small rt-nota">💡 ${esc(m.nota)}</div>`:''}
+        ${!os.length?'<p class="small muted">La guía todavía no tiene equipo recomendado para esta misión (es nueva).</p>':''}${os.map(o=>`<div class="ctr ${asg===o?'rt-asg':''}"><div class="ports">${rtPorts(o.e,a,minR)}</div><div class="meta"><span class="chip ${o.e.estado}">${chipTxt[o.e.estado]}</span>${asg===o?' <span class="small" style="color:var(--ok)">← en tu plan</span>':''}<div class="small muted">${esc(o.n)}</div>${o.e.low.length?`<div class="small">Subir: ${o.e.low.map(r=>esc(rtName(r))+' ('+rtLvl(r,minR)+')').join(', ')}</div>`:''}${o.e.missing.length?`<div class="small muted">Falta: ${o.e.missing.map(r=>esc(rtName(r))).join(', ')}</div>`:''}</div></div>`).join('')}</div>`}).join('');
+      const pp=arr=>arr.map(r=>portrait(r.id,r.u,{sm:true,min:r.ship?null:minR,multi:'pide ×'+r.c})).join('');
+      return `<details class="omi-tier rt-pl" open><summary><span>${esc(p.n)}</span> ${ladoTxt[p.lado]}${p.bonus?' <span class="chip casi">bonus</span>':''}<span class="muted small"> ${p.ms.length} misiones · ${pel.pon.length} para pelotones</span><span class="omi-arrow">›</span></summary>
+        <div style="padding:8px 4px">${ms}
+        <h3 style="margin-top:14px">🧩 Pelotones · lo que puedes aportar al gremio</h3>
+        <p class="small muted">Personajes y naves que pide el gremio en ${esc(p.n)} y que tienes a R${minR}+ (naves 7★), sin contar los de tu plan de combate. "pide ×n" = cuántas copias necesita el gremio entero: los que piden más son los más difíciles de llenar.</p>
+        ${pel.pon.length?`<div class="ports">${pp(pel.pon)}</div>`:'<p class="small muted">Nada disponible a esa reliquia.</p>'}
+        ${pel.reserv.length?`<p class="small muted" style="margin-top:8px">También los tienes pero están en tu plan de combate (si el gremio no llena un pelotón, úsalos aquí en vez de pelear):</p><div class="ports">${pp(pel.reserv)}</div>`:''}
+        ${pel.cerca.length?`<p class="small" style="margin-top:8px">🔧 Cerca de servir (sube a R${minR}):</p><div class="ports">${pp(pel.cerca.slice(0,14))}</div>`:''}</div></details>`;
+    }).join('');
+    return head+plan+`<div class="panel">${det}</div>`;
+  }
+
+  // ★ Todas: resumen por cuenta
+  const plans=list.map(a=>({a,P:rtPlan(planets,a,minR)}));
+  const rows=planets.map(p=>p.ms.map(m=>`<tr><td>${esc(p.n)}${p.bonus?' <span class="chip casi">bonus</span>':''}</td><td><b>${esc(m.t)}</b><div class="small muted">${esc(m.req)}</div></td>${plans.map(({a,P})=>{const o=P.asg.get(m); if(o) return `<td><span class="mini listo">${esc(o.n.replace(/\s*\(.*?\)/g,''))}</span><div class="small muted">${o.e.res.map(r=>esc(rtName(r))).join(', ')}</div></td>`;
+      const c=P.opts.get(m).find(x=>x.e.estado==='casi'); return `<td>${c?`<span class="mini casi">Subir</span><div class="small muted">${c.e.low.map(r=>esc(rtName(r))).join(', ')}</div>`:'<span class="muted small">—</span>'}</td>`}).join('')}</tr>`).join('')).join('');
+  const pelRows=planets.map(p=>{
+    const per=plans.map(({a,P})=>rtPelotones(p,a,minR,P.used));
+    const need=p.pel.reduce((s,[,c])=>s+c,0);
+    const cubre=p.pel.reduce((s,[n,c])=>{const id=rtId(n); return s+Math.min(c,per.filter(x=>x.pon.some(r=>r.id===id)).length)},0);
+    return `<tr><td>${esc(p.n)}</td><td class="n"><b>${cubre}</b> / ${need}</td>${per.map(x=>`<td class="n"><b>${x.pon.length}</b><div class="small muted">${x.cerca.length} cerca</div></td>`).join('')}</tr>`}).join('');
+  return head+`<div class="panel"><h3>⭐ Plan sugerido por cuenta · Fase ${f.fase} (R${minR}+)</h3><p class="small muted">Elige una sola cuenta arriba para ver el detalle con fotos, qué subir y qué poner en pelotones.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Planeta</th><th>Misión</th>${list.map(a=>`<th>${esc(a.cfg.nombre)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="panel"><h3>🧩 Pelotones · aporte de tus cuentas</h3><p class="small muted">Copias que cubren tus cuentas juntas (sin usar los de combate) frente a las que pide el gremio en cada planeta, y cuántos personajes puede aportar cada cuenta.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Planeta</th><th class="n">Cubres</th>${list.map(a=>`<th class="n">${esc(a.cfg.nombre)}</th>`).join('')}</tr></thead><tbody>${pelRows}</tbody></table></div></div>`;
+}
+
 /* ======================= EVENTOS ======================= */
 function bind(){
   const $=id=>document.getElementById(id), on=(id,ev,f)=>{const e=$(id);if(e)e.addEventListener(ev,f)};
@@ -1474,6 +1576,7 @@ function bind(){
   on('mgSort','change',e=>{S.mg.sort=e.target.value;mgSave();render()});
   on('mgMin','change',e=>{S.mg.minR=+e.target.value;mgSave();render()});
   on('mgReady','change',e=>{S.mg.ready=e.target.checked;mgSave();render()});
+  document.querySelectorAll('.rt-fase').forEach(b=>b.onclick=()=>{S.rt.fase=+b.dataset.v;rtSave();render()});
   on('rvCode','keydown',e=>{if(e.key==='Enter')loadRival(e.target.value)});
   document.querySelectorAll('.rv-load').forEach(b=>b.onclick=()=>loadRival(b.dataset.c));
   document.querySelectorAll('.rv-del').forEach(b=>b.onclick=()=>{lsSet('swgoh_rivales',rivals().filter(r=>r.codigo!==b.dataset.c));render()});
